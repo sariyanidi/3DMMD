@@ -28,6 +28,7 @@ from torchvision.io import read_image
 from time import time
 
 
+
 class SimpleDataset(Dataset):
     
     def __init__(self, rootdir='/media/v/SSD1TB/dataset/for_3DID/cropped/', is_train=True,
@@ -76,7 +77,7 @@ class SimpleDataset(Dataset):
         # label[-1] -= 1000
         lmks = np.loadtxt(lmks_fpath)
         tlmks = copy.deepcopy(lmks)
-        tlmks[:,1] = 224-tlmks[:,1]
+        tlmks[:,1] = self.rasterize_size-tlmks[:,1]
         rigid_tform = utils.estimate_norm(tlmks[17:,:], self.rasterize_size)
         
         if self.transform:
@@ -134,8 +135,9 @@ class SimpleDataset(Dataset):
             
             if os.path.exists(label_path):
                 continue
+            
             lmks = np.loadtxt(f)[17:,:]
-            lmks[:,1] = 224-lmks[:,1]
+            lmks[:,1] = self.rasterize_size-lmks[:,1]
             fit_params, _ = fitter.fit_orthographic_GN(lmks)
             R, _ = utils.get_rot_matrix(fit_params['u'])
             
@@ -157,11 +159,14 @@ class SimpleDataset(Dataset):
 mm = morphable_model.MorphableModel()
 
 
-train_data = SimpleDataset(transform=Grayscale(num_output_channels=3), is_train=True, normalize_labels=False)
+rdir = '/online_data/face/3dshape/for_3DID/cropped'
+train_data = SimpleDataset(transform=Grayscale(num_output_channels=3), is_train=True, normalize_labels=False,
+                           rootdir=rdir)
 # train_data.create_labels(mm)
+
 #%%
-train_data = SimpleDataset(transform=Grayscale(num_output_channels=3), is_train=True, normalize_labels=False)
-test_data = SimpleDataset(transform=Grayscale(num_output_channels=3), is_train=False, normalize_labels=False)
+train_data = SimpleDataset(transform=Grayscale(num_output_channels=3), is_train=True, normalize_labels=False, rootdir=rdir)
+test_data = SimpleDataset(transform=Grayscale(num_output_channels=3), is_train=False, normalize_labels=False, rootdir=rdir)
 
 train_dataloader = DataLoader(train_data, batch_size=64, shuffle=True)
 test_dataloader = DataLoader(test_data, batch_size=64, shuffle=True)
@@ -177,7 +182,7 @@ model = medium_model.MediumModel(rasterize_fov=fov, rasterize_size=rasterize_siz
 
 
 model = model.to(device)
-optimizer = torch.optim.Adam(model.parameters(), lr=1e-5)
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
 # scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, args.scheduler_step_size)
 
 
@@ -237,6 +242,7 @@ sb = model.mm.sigma_betas
 
 # model.unfreeze_all_but_rigid_layers()
 # model.freeze_all_but_rigid_layers()
+
 for n in range(0, 1000):
     print(n)
     
@@ -252,14 +258,14 @@ for n in range(0, 1000):
         lmks = lmks.to(device)[:,17:,:]
         tforms = tforms.to(device)
         
-        if len(hist_tes) < 25:
+        if len(hist_tes) < 30:
             output, _, _ , _, _, _, _ = model(inputs, tforms=tforms, render=False)
             params = model.parse_params(output)
             closs = F.l1_loss(output[:,-6:], targets[:,:])
         else:
             for g in optimizer.param_groups:
-                g['lr'] = 1e-4
-                
+                g['lr'] = 1e-5
+            
             model.freeze_rigid_layers()
 
             output, masked_in, rendered_out, mask, plmks, gt_feat, pred_feat = model(inputs, tforms=tforms, render=True)
@@ -311,7 +317,7 @@ for n in range(0, 1000):
             lmks = lmks.to(device)[:,17:,:]
             tforms = tforms.to(device)
             
-            if len(hist_tes) < 25:
+            if len(hist_tes) < 30:
                 output, _, _, _, plmks, _, _ = model(inputs, tforms, render=False)
                 params = model.parse_params(output)
                 closs = F.l1_loss(output[:,-6:], targets[:,:])
@@ -356,7 +362,11 @@ for n in range(0, 1000):
         
         plt.clf()
         # plt.semilogy(hist_tra[25:])
-        plt.semilogy(hist_tes[25:])
+        if plmks is not None:
+            plt.semilogy(hist_tes[25:])
+        else:
+            plt.semilogy(hist_tes)
+
         plt.show()
         
         
