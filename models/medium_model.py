@@ -9,6 +9,13 @@ Created on Tue Nov  7 17:27:23 2023
 import os
 import torch
 import torch.nn as nn
+from models import camera 
+from utils import utils
+from torch.nn import functional as F
+
+import sys
+sys.path.append('../insightface/recognition/')
+from arcface_torch.backbones import get_model
 
 # from resnets import resnet18, conv1x1
 
@@ -26,11 +33,37 @@ def filter_state_dict(state_dict, remove_name='fc'):
 
 
 
+
+
+class RecogNetWrapper(nn.Module):
+    def __init__(self, net_recog, pretrained_path=None, input_size=112):
+        super(RecogNetWrapper, self).__init__()
+        net = get_model(name=net_recog, fp16=True)
+        if pretrained_path:
+            state_dict = torch.load(pretrained_path, map_location='cpu')
+            net.load_state_dict(state_dict)
+            print("loading pretrained net_recog %s from %s" %(net_recog, pretrained_path))
+        for param in net.parameters():
+            param.requires_grad = False
+        self.net = net
+        self.preprocess = lambda x: 2 * x - 1
+        self.input_size=input_size
+        
+    def forward(self, image, M):
+        image = self.preprocess(utils.resize_n_crop(image, M, self.input_size))
+        id_feature = F.normalize(self.net(image), dim=-1, p=2)
+        return id_feature
+
+
+
+
 class MediumModel(nn.Module):
     
     resnet18_last_dim = 512
     
     def __init__(self, use_last_fc=False, 
+                 rasterize_fov=12.56,
+                 rasterize_size=224,
                  device='cuda',
                  init_path='./models/checkpoints/resnet18-f37072fd.pth'):
         
@@ -39,12 +72,22 @@ class MediumModel(nn.Module):
         self.device = device
         self.use_last_fc = use_last_fc
         
+        self.cam = camera.Camera(fov_x=rasterize_fov, fov_y=rasterize_fov, 
+                          cx=rasterize_size/2.0, cy=rasterize_size/2.0)
+
+        
         # Renderer requires GPU
-        self.renderer = mesh_renderer.MeshRenderer(12.56, rasterize_size=224).to(self.device)
+        self.renderer = mesh_renderer.MeshRenderer(rasterize_fov, rasterize_size=rasterize_size, use_opengl=False).to(self.device)
 
         state_dict = filter_state_dict(torch.load(init_path, map_location='cpu'))
         self.backbone = resnets.resnet18()
         self.backbone.load_state_dict(state_dict)
+        
+        self.net_recog = RecogNetWrapper(net_recog='r50', 
+                                         pretrained_path='./models/checkpoints/recog_model/backbone.pth')
+        self.net_recog.to(self.device)
+        self.net_recog.net.eval()
+        
         if not use_last_fc:
             """
             """
@@ -72,7 +115,7 @@ class MediumModel(nn.Module):
             #     nn.init.constant_(m.weight, 0.)
             #     nn.init.constant_(m.bias, 0.)
 
-    def forward(self, input_im, render=False):
+    def forward(self, input_im, tforms, render=False):
         x = self.backbone(input_im)
         if not self.use_last_fc:
             output = []
@@ -84,15 +127,33 @@ class MediumModel(nn.Module):
         mask = None
         masked_input = None
         rendered_output = None
+        lmks = None
+        gt_feat = None
+        pred_feat = None
         
         if render:
             params = self.parse_params(x)
             # params['tau'][:,-1] = params['tau'][:,-1] + 1000
-            mask, _, rendered_output = self.render_image(params)
+            (mask, _, rendered_output), p = self.render_image(params)
             masked_input = input_im[:,0:1,:,:]*mask#.repeat([1,3,1,1])
+            lmks = p[:,self.mm.li,:]
             # params['tau'][:,-1] = params['tau'][:,-1] - 1000
+            
+            rendered_output_3ch = rendered_output.repeat(1,3,1,1)
+            # print(input_im.shape)
+            # print(rendered_output_3ch.shape)
+            # print('------------------------------')
+            self.net_recog.eval()
+            self.net_recog.net.eval()
+            assert self.net_recog.training == False
+            gt_feat = self.net_recog(input_im, tforms)
+            # pred_feat = self.net_recog(input_im, tforms)
+            # tforms = tforms.requires_grad(True)
+            # tforms.requires_grad_(True)
+            pred_feat = self.net_recog(rendered_output_3ch, tforms)
+            
         
-        return x, masked_input, rendered_output, mask
+        return x, masked_input, rendered_output, mask, lmks, gt_feat, pred_feat
     
     
     def freeze_all_but_rigid_layers(self):
@@ -148,8 +209,13 @@ class MediumModel(nn.Module):
         mesh = self.mm.view_transform(canonical_mesh, R, params['tau'])
         texture = self.mm.compute_texture(params['beta'])
         # mesh[:,:, 1] *= -1
+        
+        # print(mesh.shape)
+        p = self.cam.map_to_2d(mesh)
+        # print(p.shape)
+        # print(mesh.shape)
 
-        return self.renderer(mesh, self.mm.tri, feat=texture)
+        return self.renderer(mesh, self.mm.tri, feat=texture), p
         
         # d = y[1].squeeze().detach().cpu().numpy()
         # df = d.flatten()
@@ -175,11 +241,6 @@ class MediumModel(nn.Module):
         for param in self.illum_layers.parameters():
             param.requires_grad = True
     
-    
-    
-m = MediumModel()
-
-
     
     
     

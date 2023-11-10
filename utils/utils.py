@@ -6,6 +6,11 @@ Created on Tue Nov  7 07:26:18 2023
 @author: v
 """
 
+import torch
+from skimage import transform as trans
+from kornia.geometry import warp_affine
+
+
 import numpy as np
 
 
@@ -62,3 +67,54 @@ def Uij(i, j):
 def skew(u):
     Ux = np.array([[0, -u[2,0], u[1,0]], [u[2,0], 0, -u[0,0]], [-u[1,0], u[0,0], 0]])
     return Ux
+
+
+
+# utils for face reconstruction
+def extract_5p(lm):
+    lm_idx = np.array([31-17, 37-17, 40-17, 43-17, 46-17, 49-17, 55-17]) - 1
+    lm5p = np.stack([lm[lm_idx[0], :], np.mean(lm[lm_idx[[1, 2]], :], 0), np.mean(
+        lm[lm_idx[[3, 4]], :], 0), lm[lm_idx[5], :], lm[lm_idx[6], :]], axis=0)
+    lm5p = lm5p[[1, 2, 0, 3, 4], :]
+    return lm5p
+
+# utils for face recognition model
+def estimate_norm(lm_51p, H):
+    # from https://github.com/deepinsight/insightface/blob/c61d3cd208a603dfa4a338bd743b320ce3e94730/recognition/common/face_align.py#L68
+    """
+    Return:
+        trans_m            --numpy.array  (2, 3)
+    Parameters:
+        lm                 --numpy.array  (68, 2), y direction is opposite to v direction
+        H                  --int/float , image height
+    """
+    lm = extract_5p(lm_51p)
+    lm[:, -1] = H - 1 - lm[:, -1]
+    tform = trans.SimilarityTransform()
+    src = np.array(
+    [[38.2946, 51.6963], [73.5318, 51.5014], [56.0252, 71.7366],
+     [41.5493, 92.3655], [70.7299, 92.2041]],
+    dtype=np.float32)
+    tform.estimate(lm, src)
+    M = tform.params
+    if np.linalg.det(M) == 0:
+        M = np.eye(3)
+
+    return M[0:2, :]
+
+def estimate_norm_torch(lm_51p, H):
+    lm_51p_ = lm_51p.detach().cpu().numpy()
+    M = []
+    for i in range(lm_51p_.shape[0]):
+        M.append(estimate_norm(lm_51p_[i], H))
+    M = torch.tensor(np.array(M), dtype=torch.float32).to(lm_51p.device)
+    return M
+
+
+
+
+def resize_n_crop(image, M, dsize=112):
+    # image: (b, c, h, w)
+    # M   :  (b, 2, 3)
+    return warp_affine(image, M, dsize=(dsize, dsize))
+

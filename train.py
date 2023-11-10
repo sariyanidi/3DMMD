@@ -25,12 +25,14 @@ from torch.nn import functional as F
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
 from torchvision.io import read_image
+from time import time
 
 
 class SimpleDataset(Dataset):
     
     def __init__(self, rootdir='/media/v/SSD1TB/dataset/for_3DID/cropped/', is_train=True,
-                 transform=None, normalize_labels=False):
+                 transform=None, normalize_labels=False,
+                 fov=12.56, rasterize_size=224):
         self.rootdir = rootdir
         # self.extn = 'label0000'
         self.extn = 'label_eulerrod2'
@@ -39,6 +41,8 @@ class SimpleDataset(Dataset):
         all_label_paths.sort()
         
         self.transform = transform
+        self.fov = fov
+        self.rasterize_size = rasterize_size
         
         Ntot = len(all_label_paths)
         Ntra = int(0.75*Ntot)
@@ -71,7 +75,10 @@ class SimpleDataset(Dataset):
         label = np.loadtxt(label_fpath)
         # label[-1] -= 1000
         lmks = np.loadtxt(lmks_fpath)
-
+        tlmks = copy.deepcopy(lmks)
+        tlmks[:,1] = 224-tlmks[:,1]
+        rigid_tform = utils.estimate_norm(tlmks[17:,:], self.rasterize_size)
+        
         if self.transform:
             image = self.transform(image)
         if self.normalize_labels:
@@ -79,11 +86,11 @@ class SimpleDataset(Dataset):
             label /= self.stds
         # if self.target_transform:
         #     label = self.target_transform(label)
-        return image.float(), torch.from_numpy(label).float(), torch.from_numpy(lmks).float()
+        return image.float(), \
+            torch.from_numpy(label).float(), \
+                torch.from_numpy(lmks).float(), \
+                    torch.from_numpy(rigid_tform).float()
     
-    
-    
-
     def get_with_lmks(self, idx):
         label_fpath = self.label_paths[idx]
         lmks_fpath = label_fpath.replace(f'.{self.extn}', '.txt')
@@ -91,23 +98,28 @@ class SimpleDataset(Dataset):
         image = read_image(img_fpath)
         label = np.loadtxt(label_fpath)
         lmks = np.loadtxt(lmks_fpath)
+        
+        rigid_tform = utils.estimate_norm(lmks, self.rasterize_size)
         # label[-1] -= 1000
         if self.transform:
             image = self.transform(image)
         if self.normalize_labels:
             label -= self.means
             label /= self.stds
+        
         # if self.target_transform:
         #     label = self.target_transform(label)
         return image.float().unsqueeze(0), \
                     torch.from_numpy(label).float().unsqueeze(0), \
-                    torch.from_numpy(lmks).float().unsqueeze(0)
+                    torch.from_numpy(lmks).float().unsqueeze(0), \
+                        torch.from_numpy(rigid_tform).float().unsqueeze(0)
+                        
     
     
     def create_labels(self, model):
         
-        
-        cam = camera.Camera(12.56, 12.56, 112, 112)
+        cam = camera.Camera(self.fov, self.fov, 
+                            self.rasterize_size, self.rasterize_size)
 
         fitter = orthograhic_fitter.OrthographicFitter(model)
         
@@ -144,6 +156,7 @@ class SimpleDataset(Dataset):
 
 mm = morphable_model.MorphableModel()
 
+
 train_data = SimpleDataset(transform=Grayscale(num_output_channels=3), is_train=True, normalize_labels=False)
 # train_data.create_labels(mm)
 #%%
@@ -155,12 +168,16 @@ test_dataloader = DataLoader(test_data, batch_size=64, shuffle=True)
 
 device = 'cuda'
 
+fov = 12.56
+cx = 112
+rasterize_size = 2*cx
+
 # model = simple_model.SimpleModel()
-model = medium_model.MediumModel()
+model = medium_model.MediumModel(rasterize_fov=fov, rasterize_size=rasterize_size)
 
 
 model = model.to(device)
-optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-5)
 # scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, args.scheduler_step_size)
 
 
@@ -171,7 +188,7 @@ hist_tes = []
 checkpoint_dir = 'checkpoints'
 
 os.makedirs(checkpoint_dir, exist_ok=True)
-checkpoint_file0 = f'{checkpoint_dir}/medium_model.pth'
+checkpoint_file0 = f'{checkpoint_dir}/medium_modelss.pth'
 
 if os.path.exists(checkpoint_file0):
     checkpoint = torch.load(checkpoint_file0)
@@ -199,9 +216,24 @@ def photo_loss(imageA, imageB, mask, eps=1e-6):
     return loss
 
 
-def reg_loss(params, l1=0.02, l2=0.02, l3=0.02):
-    return l1*torch.linalg.norm(params['alpha']) + l2*torch.linalg.norm(params['beta']) + l3*torch.linalg.norm(params['exp'])
+def perceptual_loss(id_featureA, id_featureB):
+    cosine_d = torch.sum(id_featureA * id_featureB, dim=-1)
+        # assert torch.sum((cosine_d > 1).float()) == 0
+    return torch.sum(1 - cosine_d) / cosine_d.shape[0]  
 
+
+def reg_loss(params, sa, sb, l1=0.00005, l2=0.001, l3=1000.002):
+    # sa: sigma alphas (st dev of shape)
+    return l1*torch.linalg.norm(params['alpha']/sa) + l2*torch.linalg.norm(params['beta']/sb) + l3*torch.linalg.norm(params['exp'])/79.
+
+
+
+def lm_loss(lmks, plmks, lmd1=0.0005):
+    B = lmks.shape[0]
+    return lmd1*torch.sum((lmks.reshape(B,-1)-plmks.reshape(B,-1))**2)
+
+sa = model.mm.sigma_alphas
+sb = model.mm.sigma_betas
 
 # model.unfreeze_all_but_rigid_layers()
 # model.freeze_all_but_rigid_layers()
@@ -211,25 +243,40 @@ for n in range(0, 1000):
     train_loss = 0
     model.train()
     num_batches = 0
-    for train_features, train_labels, lmks in train_dataloader:
+    t0 = time()
+    for train_features, train_labels, lmks, tforms in train_dataloader:
         # print(train_features.shape)
 
-        inputs  = train_features.to(device)
+        inputs  = train_features.to(device)/255.
         targets = train_labels.to(device)
+        lmks = lmks.to(device)[:,17:,:]
+        tforms = tforms.to(device)
         
-        
-        if len(hist_tes) < 20:
-            output, _, _ , _ = model(inputs, render=False)
+        if len(hist_tes) < 25:
+            output, _, _ , _, _, _, _ = model(inputs, tforms=tforms, render=False)
             params = model.parse_params(output)
             closs = F.l1_loss(output[:,-6:], targets[:,:])
         else:
             for g in optimizer.param_groups:
-                g['lr'] = 1e-6
+                g['lr'] = 1e-4
+                
+            model.freeze_rigid_layers()
 
-            output, masked_in, rendered_out, mask = model(inputs, render=True)
+            output, masked_in, rendered_out, mask, plmks, gt_feat, pred_feat = model(inputs, tforms=tforms, render=True)
+            plmks[:,:,1] = 224-plmks[:,:,1]
+
             params = model.parse_params(output)
-            closs = F.l1_loss(output[:,-6:], targets[:,:])+photo_loss(masked_in, rendered_out, mask)+reg_loss(params)
-            # closs = photo_loss(rendered_out, rendered_out)
+            # closs = F.l1_loss(output[:,-6:], targets[:,:]) + \
+            #     photo_loss(masked_in, rendered_out, mask) + \
+            #         reg_loss(params) + \
+            #             lm_loss(lmks, plmks) + \
+            #                 perceptual_loss(gt_feat, pred_feat)
+                        
+            closs = photo_loss(masked_in, rendered_out, mask) + \
+                        reg_loss(params, sa, sb) + \
+                            lm_loss(lmks, plmks) + \
+                                perceptual_loss(gt_feat, pred_feat)
+                        
 
         # _, _, ims = model.render_image(params)
         # closs = F.l1_loss(output[:,-6:], targets[:,:]) 
@@ -241,14 +288,14 @@ for n in range(0, 1000):
         optimizer.step()
         num_batches += 1
         # params['tau'][:,-1] += 1000
-        mask, depth, ims = model.render_image(params)
+        # (mask, depth, ims), lmks = model.render_image(params)
         # break
-    
-    plt.clf()
-    plt.imshow(ims[0].detach().cpu().numpy()[0,:,:])
-    plt.plot(lmks[0][:,0], lmks[0][:,1], '.')
-    plt.show()
-    # break
+        # break
+    # plt.clf()
+    # plt.imshow(ims[0].detach().cpu().numpy()[0,:,:])
+    # plt.plot(lmks[0][:,0], lmks[0][:,1], '.')
+    # plt.show()
+    # # break
       
     hist_tra.append(train_loss/num_batches)
     
@@ -258,23 +305,32 @@ for n in range(0, 1000):
         
         tes_loss = 0
         num_batches = 0
-        for test_features, test_labels, lmks in test_dataloader:
-            inputs  = test_features.to(device)
+        for test_features, test_labels, lmks, tforms in test_dataloader:
+            inputs  = test_features.to(device)/255.
             targets = test_labels.to(device)
+            lmks = lmks.to(device)[:,17:,:]
+            tforms = tforms.to(device)
             
-            
-            if len(hist_tes) < 20:
-                output, _, _, _= model(inputs, render=False)
+            if len(hist_tes) < 25:
+                output, _, _, _, plmks, _, _ = model(inputs, tforms, render=False)
                 params = model.parse_params(output)
                 closs = F.l1_loss(output[:,-6:], targets[:,:])
             else:
-                for g in optimizer.param_groups:
-                    g['lr'] = 1e-6
-
-                output, masked_in, rendered_out, mask = model(inputs, render=True)
+                output, masked_in, rendered_out, mask, plmks, gt_feat, pred_feat = model(inputs, tforms=tforms, render=True)
+                plmks[:,:,1] = 224-plmks[:,:,1]
                 params = model.parse_params(output)
-                closs = F.l1_loss(output[:,-6:], targets[:,:])+photo_loss(masked_in, rendered_out, mask)+reg_loss(params)
-                
+
+                # closs = F.l1_loss(output[:,-6:], targets[:,:]) + \
+                    # photo_loss(masked_in, rendered_out, mask) + \
+                        # reg_loss(params) + \
+                            # lm_loss(lmks, plmks) + \
+                                # perceptual_loss(gt_feat, pred_feat)     
+                closs = photo_loss(masked_in, rendered_out, mask) + \
+                            reg_loss(params, sa, sb) + \
+                                lm_loss(lmks, plmks) + \
+                                    perceptual_loss(gt_feat, pred_feat)
+
+                            
             tes_loss += closs.item() #* inputs.size(0)
             
             num_batches += 1
@@ -282,7 +338,7 @@ for n in range(0, 1000):
         hist_tes.append(tes_loss/num_batches)
         
         if n > 1 and (hist_tes[-1] < min(hist_tes[:-1])):
-            checkpoint_file = f'{checkpoint_dir}/medium_modelv_{n:05d}.pth'
+            checkpoint_file = f'{checkpoint_dir}/medium_modelsv_{n:05d}.pth'
 
             checkpoint = {
                 "model_state": model.state_dict(),
@@ -296,56 +352,36 @@ for n in range(0, 1000):
     
         # params['tau'][:,-1] += 1000
         
-        _, _, ims = model.render_image(params)
+        # (_, _, ims), lmks = model.render_image(params)
         
         plt.clf()
-        plt.semilogy(hist_tra[-6:])
-        plt.semilogy(hist_tes[-6:])
+        # plt.semilogy(hist_tra[25:])
+        plt.semilogy(hist_tes[25:])
         plt.show()
         
         
-        
-        plt.clf()
-        plt.subplot(121)
-        plt.imshow(ims[0].detach().cpu().numpy()[0,:,:])
-        # plt.plot(lmks[0][:,0], lmks[0][:,1], '.')
-
-        # lmks[:,:,1] = 224-lmks[:,1]
-
-        # plt.plot(lmks[0][:,0], lmks[0][:,1], '.')
-        plt.subplot(122)
-        plt.imshow(test_features[0,0,:,:].detach().cpu().numpy())
-        # plt.plot(lmks[0][:,0], lmks[0][:,1], '.')
+        if plmks is not None:
+            plt.clf()
+            plt.figure(figsize=(14,14))
+            plt.subplot(121)
+            plt.imshow(masked_in[0].detach().cpu().numpy()[0,:,:])
+            # plt.plot(lmks[0][:,0].cpu(), lmks[0][:,1].cpu(), '.')
+            # plt.plot(plmks[0][:,0].detach().cpu(), plmks[0][:,1].detach().cpu(), '.')
+    
+            # lmks[:,:,1] = 224-lmks[:,1]
+    
+            # plt.plot(lmks[0][:,0], lmks[0][:,1], '.')
+            plt.subplot(122)
+            plt.imshow(rendered_out[0,0,:,:].detach().cpu().numpy())
+            # plt.plot(lmks[0][:,0], lmks[0][:,1], '.')
 
         plt.show()
-          
-
-
-
-#%%
-
-# input_tes = train_data.get_with_lmks(13)
-# output = model(input_tes[0].to('cuda'))
-# params = model.parse_params(output)
-
-# params['tau'][:,-1] += 1000
-
-# _, _, ims = model.render_image(params)
-
-# lmks = input_tes[2][0]
-# plt.imshow(ims[0].detach().cpu().numpy()[0,:,:])
-# plt.plot(lmks[:,0], lmks[:,1], '.')
-
-masked = inputs*mask.repeat([1,3,1,1])
-#%%
-tim = inputs[0,0,:,:].detach().cpu()
-m0 = mask[0,0,:,:].detach().cpu() 
-plt.imshow(tim*m0)
-
+    
+    print('%.2f seconds' % (time()-t0))
 
 #%%
-
-plt.imshow(masked[0,0,:,:].detach().cpu())
-
-
+ims = train_features
+cropped = resize_n_crop(ims, tforms)
+plt.imshow(ims[0,0,:,:].detach().cpu())
+plt.imshow(cropped[0,0,:,:].detach().cpu())
 

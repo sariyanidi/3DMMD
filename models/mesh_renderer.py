@@ -37,6 +37,9 @@ class MeshRenderer(nn.Module):
         super(MeshRenderer, self).__init__()
 
         x = np.tan(np.deg2rad(rasterize_fov * 0.5)) * znear
+        self.rasterize_fov = rasterize_fov
+        self.rasterize_size = rasterize_size
+        
         self.ndc_proj = torch.tensor(ndc_projection(x=x, n=znear, f=zfar)).matmul(
                 torch.diag(torch.tensor([1., -1, -1, 1])))
         self.rasterize_size = rasterize_size

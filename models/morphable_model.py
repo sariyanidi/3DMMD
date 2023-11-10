@@ -28,7 +28,6 @@ class MorphableModel():
     def __init__(self, key='BFMmm-19830', data_rootdir='./data', device='cuda',
                  im_w=512.0, im_h=512.0):
         self.data_dir = f'{data_rootdir}/{key}'
-                
         self.device = device
         X0 = torch.from_numpy(np.loadtxt(f'{self.data_dir}/X0_mean.dat')).unsqueeze(1).T # [1, N]
         Y0 = -torch.from_numpy(np.loadtxt(f'{self.data_dir}/Y0_mean.dat')).unsqueeze(1).T # [1, N]
@@ -57,11 +56,11 @@ class MorphableModel():
         self.point_buf = self.get_point_buf()
         
         IX = torch.from_numpy(np.loadtxt(f'{self.data_dir}/IX.dat')).unsqueeze(2).float().to(self.device) # [N, Kid, 1]
-        IY = -torch.from_numpy(np.loadtxt(f'{self.data_dir}/IY.dat')).unsqueeze(2).float().to(self.device) # [N, Kid, 1]
+        IY = torch.from_numpy(np.loadtxt(f'{self.data_dir}/IY.dat')).unsqueeze(2).float().to(self.device) # [N, Kid, 1]
         IZ = torch.from_numpy(np.loadtxt(f'{self.data_dir}/IZ.dat')).unsqueeze(2).float().to(self.device) # [N, Kid, 1]
         
         EX = torch.from_numpy(np.loadtxt(f'{self.data_dir}/E/EX_79.dat')).unsqueeze(2).float().to(self.device) # [N, Kexp, 1]
-        EY = -torch.from_numpy(np.loadtxt(f'{self.data_dir}/E/EY_79.dat')).unsqueeze(2).float().to(self.device) # [N, Kexp, 1]
+        EY = torch.from_numpy(np.loadtxt(f'{self.data_dir}/E/EY_79.dat')).unsqueeze(2).float().to(self.device) # [N, Kexp, 1]
         EZ = torch.from_numpy(np.loadtxt(f'{self.data_dir}/E/EZ_79.dat')).unsqueeze(2).float().to(self.device) # [N, Kexp, 1]
         
         self.Kid = IX.shape[1]
