@@ -244,6 +244,7 @@ class OrthographicFitter():
         
         # plt.plot(lmks[:,0], lmks[:,1], '.')
         # plt.plot(x, y, '.')
+        # plt.show()
         # plt.xlim((0, 2*cx))
         # plt.ylim((0, 2*cy))
         # ax = plt.gca()

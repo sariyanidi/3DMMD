@@ -20,6 +20,7 @@ from models import camera
 import matplotlib.pyplot as plt
 from models import morphable_model, orthograhic_fitter, simple_model, medium_model
 
+
 from torchvision.transforms import Grayscale
 from torch.nn import functional as F
 from torch.utils.data import DataLoader
@@ -31,19 +32,20 @@ from time import time
 
 class SimpleDataset(Dataset):
     
-    def __init__(self, rootdir='/media/v/SSD1TB/dataset/for_3DID/cropped/', is_train=True,
-                 transform=None, normalize_labels=False,
-                 fov=12.56, rasterize_size=224):
+    def __init__(self,  fov, rasterize_size,
+                 rootdir='./cropped_dataset/', 
+                 is_train=True,
+                 transform=None, normalize_labels=False):
         self.rootdir = rootdir
         # self.extn = 'label0000'
-        self.extn = 'label_eulerrod2'
+        self.fov = fov
+        self.rasterize_size = rasterize_size
+        self.extn = 'label_eulerrod2%.2f' % self.fov
         self.normalize_labels = normalize_labels
         all_label_paths = glob(f'{self.rootdir}/*{self.extn}')
         all_label_paths.sort()
         
         self.transform = transform
-        self.fov = fov
-        self.rasterize_size = rasterize_size
         
         Ntot = len(all_label_paths)
         Ntra = int(0.75*Ntot)
@@ -92,6 +94,7 @@ class SimpleDataset(Dataset):
                 torch.from_numpy(lmks).float(), \
                     torch.from_numpy(rigid_tform).float()
     
+    
     def get_with_lmks(self, idx):
         label_fpath = self.label_paths[idx]
         lmks_fpath = label_fpath.replace(f'.{self.extn}', '.txt')
@@ -120,7 +123,7 @@ class SimpleDataset(Dataset):
     def create_labels(self, model):
         
         cam = camera.Camera(self.fov, self.fov, 
-                            self.rasterize_size, self.rasterize_size)
+                            self.rasterize_size/2.0, self.rasterize_size/2.0)
 
         fitter = orthograhic_fitter.OrthographicFitter(model)
         
@@ -158,31 +161,36 @@ class SimpleDataset(Dataset):
 
 mm = morphable_model.MorphableModel()
 
+fov = 30
 
-rdir = '/online_data/face/3dshape/for_3DID/cropped'
-train_data = SimpleDataset(transform=Grayscale(num_output_channels=3), is_train=True, normalize_labels=False,
+cx = 112
+rasterize_size = 2*cx
+
+# fov = 12.56
+# rdir = '/online_data/face/3dshape/for_3DID/cropped'
+rdir = './cropped_dataset'
+train_data = SimpleDataset(fov, rasterize_size, transform=Grayscale(num_output_channels=3), is_train=True, normalize_labels=False,
                            rootdir=rdir)
-# train_data.create_labels(mm)
+train_data.create_labels(mm)
 
 #%%
-train_data = SimpleDataset(transform=Grayscale(num_output_channels=3), is_train=True, normalize_labels=False, rootdir=rdir)
-test_data = SimpleDataset(transform=Grayscale(num_output_channels=3), is_train=False, normalize_labels=False, rootdir=rdir)
+train_data = SimpleDataset(fov, rasterize_size, transform=Grayscale(num_output_channels=3), is_train=True, 
+                           normalize_labels=False, rootdir=rdir)
+test_data = SimpleDataset(fov, rasterize_size, transform=Grayscale(num_output_channels=3), is_train=False, 
+                          normalize_labels=False, rootdir=rdir)
 
 train_dataloader = DataLoader(train_data, batch_size=64, shuffle=True)
 test_dataloader = DataLoader(test_data, batch_size=64, shuffle=True)
 
 device = 'cuda'
 
-fov = 12.56
-cx = 112
-rasterize_size = 2*cx
-
 # model = simple_model.SimpleModel()
-model = medium_model.MediumModel(rasterize_fov=fov, rasterize_size=rasterize_size)
+model = medium_model.MediumModel(rasterize_fov=fov, 
+                                 rasterize_size=rasterize_size)
 
 
 model = model.to(device)
-optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-5)
 # scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, args.scheduler_step_size)
 
 
@@ -193,13 +201,14 @@ hist_tes = []
 checkpoint_dir = 'checkpoints'
 
 os.makedirs(checkpoint_dir, exist_ok=True)
-checkpoint_file0 = f'{checkpoint_dir}/medium_modelss.pth'
+checkpoint_file0 = f'{checkpoint_dir}/medium_modelss{fov:.2f}.pth'
 
 if os.path.exists(checkpoint_file0):
     checkpoint = torch.load(checkpoint_file0)
     model.load_state_dict(checkpoint['model_state'])
     hist_tra = checkpoint['hist_tra']
     hist_tes = checkpoint['hist_tes']
+
 
 #%%
 
@@ -229,19 +238,19 @@ def perceptual_loss(id_featureA, id_featureB):
 
 def reg_loss(params, sa, sb, l1=0.00005, l2=0.001, l3=1000.002):
     # sa: sigma alphas (st dev of shape)
-    return l1*torch.linalg.norm(params['alpha']/sa) + l2*torch.linalg.norm(params['beta']/sb) + l3*torch.linalg.norm(params['exp'])/79.
+    return l1*torch.linalg.norm(params['alpha']/sa) + \
+        l2*torch.linalg.norm(params['beta']/sb) + \
+            l3*torch.linalg.norm(params['exp'])/79.
 
 
-
-def lm_loss(lmks, plmks, lmd1=0.0005):
+def lm_loss(lmks, plmks, lmd1=0.005):
     B = lmks.shape[0]
     return lmd1*torch.sum((lmks.reshape(B,-1)-plmks.reshape(B,-1))**2)
+
 
 sa = model.mm.sigma_alphas
 sb = model.mm.sigma_betas
 
-# model.unfreeze_all_but_rigid_layers()
-# model.freeze_all_but_rigid_layers()
 
 for n in range(0, 1000):
     print(n)
@@ -251,14 +260,12 @@ for n in range(0, 1000):
     num_batches = 0
     t0 = time()
     for train_features, train_labels, lmks, tforms in train_dataloader:
-        # print(train_features.shape)
-
         inputs  = train_features.to(device)/255.
         targets = train_labels.to(device)
         lmks = lmks.to(device)[:,17:,:]
         tforms = tforms.to(device)
         
-        if len(hist_tes) < 30:
+        if len(hist_tes) < 25:
             output, _, _ , _, _, _, _ = model(inputs, tforms=tforms, render=False)
             params = model.parse_params(output)
             closs = F.l1_loss(output[:,-6:], targets[:,:])
@@ -266,11 +273,12 @@ for n in range(0, 1000):
             for g in optimizer.param_groups:
                 g['lr'] = 1e-5
             
-            model.freeze_rigid_layers()
-
-            output, masked_in, rendered_out, mask, plmks, gt_feat, pred_feat = model(inputs, tforms=tforms, render=True)
+            # model.freeze_rigid_layers()
+            output, masked_in, rendered_out, mask, plmks, gt_feat, pred_feat = \
+                model(inputs, tforms=tforms, render=True)
+            
             plmks[:,:,1] = rasterize_size-plmks[:,:,1]
-
+            
             params = model.parse_params(output)
             # closs = F.l1_loss(output[:,-6:], targets[:,:]) + \
             #     photo_loss(masked_in, rendered_out, mask) + \
@@ -282,9 +290,9 @@ for n in range(0, 1000):
                         reg_loss(params, sa, sb) + \
                             lm_loss(lmks, plmks) + \
                                 perceptual_loss(gt_feat, pred_feat)
-                        
+        
+        (mask, _, ims_out), pr = model.render_image(params)
 
-        # _, _, ims = model.render_image(params)
         # closs = F.l1_loss(output[:,-6:], targets[:,:]) 
         # loss = F.l1_loss(output[:,:], targets[:,:3]) 
         train_loss += closs.item() #* inputs.size(0)
@@ -298,10 +306,10 @@ for n in range(0, 1000):
         # break
         # break
     # plt.clf()
-    # plt.imshow(ims[0].detach().cpu().numpy()[0,:,:])
+    plt.imshow(ims_out[0].detach().cpu().numpy()[0,:,:])
     # plt.plot(lmks[0][:,0], lmks[0][:,1], '.')
-    # plt.show()
-    # # break
+    plt.show()
+    # break
       
     hist_tra.append(train_loss/num_batches)
     
@@ -317,7 +325,7 @@ for n in range(0, 1000):
             lmks = lmks.to(device)[:,17:,:]
             tforms = tforms.to(device)
             
-            if len(hist_tes) < 30:
+            if len(hist_tes) < 25:
                 output, _, _, _, plmks, _, _ = model(inputs, tforms, render=False)
                 params = model.parse_params(output)
                 closs = F.l1_loss(output[:,-6:], targets[:,:])
@@ -335,7 +343,6 @@ for n in range(0, 1000):
                             reg_loss(params, sa, sb) + \
                                 lm_loss(lmks, plmks) + \
                                     perceptual_loss(gt_feat, pred_feat)
-
                             
             tes_loss += closs.item() #* inputs.size(0)
             
@@ -344,7 +351,7 @@ for n in range(0, 1000):
         hist_tes.append(tes_loss/num_batches)
         
         if n > 1 and (hist_tes[-1] < min(hist_tes[:-1])):
-            checkpoint_file = f'{checkpoint_dir}/medium_modelsv_{n:05d}.pth'
+            checkpoint_file = f'{checkpoint_dir}/medium_modelsv_{n:05d}{fov:.2f}.pth'
 
             checkpoint = {
                 "model_state": model.state_dict(),
@@ -390,8 +397,9 @@ for n in range(0, 1000):
     print('%.2f seconds' % (time()-t0))
 
 #%%
-ims = train_features
-cropped = resize_n_crop(ims, tforms)
-plt.imshow(ims[0,0,:,:].detach().cpu())
-plt.imshow(cropped[0,0,:,:].detach().cpu())
+
+for param in model.rigid_layers.parameters():
+    print(param.weights)
+
+
 

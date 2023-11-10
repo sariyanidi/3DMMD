@@ -11,7 +11,7 @@ import numpy as np
 
 class Camera():
     
-    def __init__(self, fov_x=20.0, fov_y=20.0, cx=112.0, cy=112.0):
+    def __init__(self, fov_x, fov_y, cx, cy):
         self.fov_x = fov_x
         self.fov_y = fov_y
         self.cx = cx

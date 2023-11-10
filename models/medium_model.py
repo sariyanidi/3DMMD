@@ -61,20 +61,20 @@ class MediumModel(nn.Module):
     
     resnet18_last_dim = 512
     
-    def __init__(self, use_last_fc=False, 
-                 rasterize_fov=12.56,
-                 rasterize_size=224,
+    def __init__(self, 
+                 rasterize_fov,
+                 rasterize_size,
                  device='cuda',
                  init_path='./models/checkpoints/resnet18-f37072fd.pth'):
         
         super().__init__()
         self.mm = morphable_model.MorphableModel()
         self.device = device
-        self.use_last_fc = use_last_fc
+        self.use_last_fc = False
+        self.rasterize_fov = rasterize_fov
         
         self.cam = camera.Camera(fov_x=rasterize_fov, fov_y=rasterize_fov, 
-                          cx=rasterize_size/2.0, cy=rasterize_size/2.0)
-
+                                 cx=rasterize_size/2.0, cy=rasterize_size/2.0)
         
         # Renderer requires GPU
         self.renderer = mesh_renderer.MeshRenderer(rasterize_fov, rasterize_size=rasterize_size, use_opengl=False).to(self.device)
@@ -88,7 +88,7 @@ class MediumModel(nn.Module):
         self.net_recog.to(self.device)
         self.net_recog.net.eval()
         
-        if not use_last_fc:
+        if not self.use_last_fc:
             """
             """
             self.MM_layers = nn.ModuleList([
@@ -108,7 +108,16 @@ class MediumModel(nn.Module):
                 resnets.conv1x1(self.resnet18_last_dim, 1, bias=True),  # tx, ty, tz
             ])
             
-            nn.init.constant_(self.rigid_layers[-1].bias, 1000.0)
+            
+            if self.rasterize_fov < 13:
+                offset = 1000.0
+            elif self.rasterize_fov == 30:
+                offset = 510
+            elif self.rasterize_fov == 60:
+                offset = 230
+                
+            # nn.init.constant_(self.rigid_layers[-1].bias, 1000.0)
+            nn.init.constant_(self.rigid_layers[-1].bias, offset)
             
             
             # for m in self.final_layers:
@@ -146,7 +155,8 @@ class MediumModel(nn.Module):
             self.net_recog.eval()
             self.net_recog.net.eval()
             assert self.net_recog.training == False
-            gt_feat = self.net_recog(input_im, tforms)
+            masked_input = masked_input.repeat(1,3,1,1)
+            gt_feat = self.net_recog(masked_input, tforms)
             # pred_feat = self.net_recog(input_im, tforms)
             # tforms = tforms.requires_grad(True)
             # tforms.requires_grad_(True)
