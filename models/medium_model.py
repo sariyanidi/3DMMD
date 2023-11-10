@@ -109,9 +109,14 @@ class MediumModel(nn.Module):
         for param in self.rigid_layers.parameters():
             param.requires_grad = False    
             
+        for param in self.backbone.parameters():
+            param.requires_grad = False    
+            
     def unfreeze_rigid_layers(self):
 
         for param in self.rigid_layers.parameters():
+            param.requires_grad = True
+        for param in self.backbone.parameters():
             param.requires_grad = True
             
     
