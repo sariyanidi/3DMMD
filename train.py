@@ -269,7 +269,7 @@ for n in range(0, 1000):
             model.freeze_rigid_layers()
 
             output, masked_in, rendered_out, mask, plmks, gt_feat, pred_feat = model(inputs, tforms=tforms, render=True)
-            plmks[:,:,1] = 224-plmks[:,:,1]
+            plmks[:,:,1] = rasterize_size-plmks[:,:,1]
 
             params = model.parse_params(output)
             # closs = F.l1_loss(output[:,-6:], targets[:,:]) + \
