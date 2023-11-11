@@ -236,16 +236,17 @@ def perceptual_loss(id_featureA, id_featureB):
     return torch.sum(1 - cosine_d) / cosine_d.shape[0]  
 
 
-def reg_loss(params, sa, sb, l1=0.00005, l2=0.001, l3=1000.002):
+def reg_loss(params, sa, sb, l1=0.0000005, l2=0.00001, l3=1000.002):
     # sa: sigma alphas (st dev of shape)
-    return l1*torch.linalg.norm(params['alpha']/sa) + \
-        l2*torch.linalg.norm(params['beta']/sb) + \
+    return l1*torch.linalg.norm(params['alpha']/sa)/params['alpha'].shape[1] + \
+        l2*torch.linalg.norm(params['beta']/sb)/params['beta'].shape[1] + \
             l3*torch.linalg.norm(params['exp'])/79.
 
 
-def lm_loss(lmks, plmks, lmd1=0.005):
+def lm_loss(lmks, plmks, lmd1=0.5):
     B = lmks.shape[0]
-    return lmd1*torch.sum((lmks.reshape(B,-1)-plmks.reshape(B,-1))**2)
+    L = lmks.shape[1]
+    return lmd1*torch.sum((lmks.reshape(B,-1)-plmks.reshape(B,-1))**2)/(B*L*rasterize_size)
 
 
 sa = model.mm.sigma_alphas
@@ -253,7 +254,7 @@ sb = model.mm.sigma_betas
 
 
 for n in range(0, 1000):
-    print(n)
+    print(f'{n} ({len(hist_tes)})')
     
     train_loss = 0
     model.train()
@@ -271,7 +272,7 @@ for n in range(0, 1000):
             closs = F.l1_loss(output[:,-6:], targets[:,:])
         else:
             for g in optimizer.param_groups:
-                g['lr'] = 1e-5
+                g['lr'] = 1e-4
             
             # model.freeze_rigid_layers()
             output, masked_in, rendered_out, mask, plmks, gt_feat, pred_feat = \
@@ -280,16 +281,10 @@ for n in range(0, 1000):
             plmks[:,:,1] = rasterize_size-plmks[:,:,1]
             
             params = model.parse_params(output)
-            # closs = F.l1_loss(output[:,-6:], targets[:,:]) + \
-            #     photo_loss(masked_in, rendered_out, mask) + \
-            #         reg_loss(params) + \
-            #             lm_loss(lmks, plmks) + \
-            #                 perceptual_loss(gt_feat, pred_feat)
-                        
-            closs = photo_loss(masked_in, rendered_out, mask) + \
-                        reg_loss(params, sa, sb) + \
+            closs = 10*photo_loss(masked_in, rendered_out, mask) + \
+                        0*reg_loss(params, sa, sb) + \
                             lm_loss(lmks, plmks) + \
-                                perceptual_loss(gt_feat, pred_feat)
+                                20*perceptual_loss(gt_feat, pred_feat)
         
         (mask, _, ims_out), pr = model.render_image(params)
 
@@ -333,16 +328,17 @@ for n in range(0, 1000):
                 output, masked_in, rendered_out, mask, plmks, gt_feat, pred_feat = model(inputs, tforms=tforms, render=True)
                 plmks[:,:,1] = rasterize_size-plmks[:,:,1]
                 params = model.parse_params(output)
+                print(params['alpha'].abs()[:,:4])
 
                 # closs = F.l1_loss(output[:,-6:], targets[:,:]) + \
                     # photo_loss(masked_in, rendered_out, mask) + \
                         # reg_loss(params) + \
                             # lm_loss(lmks, plmks) + \
                                 # perceptual_loss(gt_feat, pred_feat)     
-                closs = photo_loss(masked_in, rendered_out, mask) + \
-                            reg_loss(params, sa, sb) + \
+                closs = 10*photo_loss(masked_in, rendered_out, mask) + \
+                            0*reg_loss(params, sa, sb) + \
                                 lm_loss(lmks, plmks) + \
-                                    perceptual_loss(gt_feat, pred_feat)
+                                    20*perceptual_loss(gt_feat, pred_feat)
                             
             tes_loss += closs.item() #* inputs.size(0)
             

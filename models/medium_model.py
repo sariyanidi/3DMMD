@@ -60,12 +60,15 @@ class RecogNetWrapper(nn.Module):
 class MediumModel(nn.Module):
     
     resnet18_last_dim = 512
+    resnet50_last_dim = 2048
     
     def __init__(self, 
                  rasterize_fov,
                  rasterize_size,
                  device='cuda',
-                 init_path='./models/checkpoints/resnet18-f37072fd.pth'):
+                 # init_path='./models/checkpoints/resnet18-f37072fd.pth'
+                 init_path='./models/checkpoints/resnet50-0676ba61.pth'
+                 ):
         
         super().__init__()
         self.mm = morphable_model.MorphableModel()
@@ -80,7 +83,8 @@ class MediumModel(nn.Module):
         self.renderer = mesh_renderer.MeshRenderer(rasterize_fov, rasterize_size=rasterize_size, use_opengl=False).to(self.device)
 
         state_dict = filter_state_dict(torch.load(init_path, map_location='cpu'))
-        self.backbone = resnets.resnet18()
+        # self.backbone = resnets.resnet18()
+        self.backbone = resnets.resnet50()
         self.backbone.load_state_dict(state_dict)
         
         self.net_recog = RecogNetWrapper(net_recog='r50', 
@@ -92,20 +96,20 @@ class MediumModel(nn.Module):
             """
             """
             self.MM_layers = nn.ModuleList([
-                resnets.conv1x1(self.resnet18_last_dim, 199, bias=True), # id layer
-                resnets.conv1x1(self.resnet18_last_dim, 79, bias=True), # exp layer
-                resnets.conv1x1(self.resnet18_last_dim, 199, bias=True) # tex layer
+                resnets.conv1x1(self.resnet50_last_dim, 199, bias=True), # id layer
+                resnets.conv1x1(self.resnet50_last_dim, 79, bias=True), # exp layer
+                resnets.conv1x1(self.resnet50_last_dim, 199, bias=True) # tex layer
             ])
             
             self.illum_layers = nn.ModuleList([
-                resnets.conv1x1(self.resnet18_last_dim, 27, bias=True) # gamma layer
+                resnets.conv1x1(self.resnet50_last_dim, 27, bias=True) # gamma layer
             ])
             
             self.rigid_layers = nn.ModuleList([
-                resnets.conv1x1(self.resnet18_last_dim, 3, bias=True),  # angle layers
-                resnets.conv1x1(self.resnet18_last_dim, 1, bias=True),  # tx, ty, tz
-                resnets.conv1x1(self.resnet18_last_dim, 1, bias=True),  # tx, ty, tz
-                resnets.conv1x1(self.resnet18_last_dim, 1, bias=True),  # tx, ty, tz
+                resnets.conv1x1(self.resnet50_last_dim, 3, bias=True),  # angle layers
+                resnets.conv1x1(self.resnet50_last_dim, 1, bias=True),  # tx, ty, tz
+                resnets.conv1x1(self.resnet50_last_dim, 1, bias=True),  # tx, ty, tz
+                resnets.conv1x1(self.resnet50_last_dim, 1, bias=True),  # tx, ty, tz
             ])
             
             
