@@ -41,6 +41,7 @@ class DirectDataset(Dataset):
         self.fov = fov
         self.rasterize_size = rasterize_size
         self.extn = f'label{self.fov}'
+        self.extn_euler = f'label_eulerrod2{self.fov:.2f}'
         self.normalize_labels = normalize_labels
         all_label_paths = glob(f'{self.rootdir}/*{self.extn}')
         all_label_paths.sort()
@@ -73,16 +74,30 @@ class DirectDataset(Dataset):
         label_fpath = self.label_paths[idx]
         img_fpath = label_fpath.replace(f'.{self.extn}', '.jpg')
         lmks_fpath = label_fpath.replace(f'.{self.extn}', '.txt')
+        rigid_label_fpath = label_fpath.replace(f'.{self.extn}', f'.{self.extn_euler}')
 
         image = read_image(img_fpath)
         label = np.loadtxt(label_fpath)
+        rigid_label = np.loadtxt(rigid_label_fpath)
+        
         alpha = label[:199]
         beta = label[199:2*199]
-        taus = label[2*199:2*199+3]
-        us = label[2*199+3:2*199+6]
-        exp = label[2*199+6:2*199+6+79]
-        y = np.concatenate((alpha, exp, beta, np.zeros(27), us, taus), axis=0)
+        # taus = rigid_label[3:]
+        # us = rigid_label[:3]
+        exp = label[(2*199+6):(2*199+6+79)]
     
+    
+        taus = label[2*199:(2*199+3)]
+        us = label[(2*199+3):(2*199+6)]
+        
+        taus[1] *= -1
+        us[0] *= -1
+        us[-1] *= -1
+
+        y = np.concatenate((alpha, exp, beta, np.zeros(27), us, taus), axis=0)
+        
+        # print(f'{us} vs {us0}')
+        
         # # label[-1] -= 1000
         # lmks = np.loadtxt(lmks_fpath)
         # tlmks = copy.deepcopy(lmks)
@@ -113,7 +128,7 @@ rdir = './cropped_dataset'
 #                            normalize_labels=False,
 #                            rootdir=rdir)
 
-#%%
+
 train_data = DirectDataset(fov, rasterize_size, transform=Grayscale(num_output_channels=3), is_train=True, 
                            normalize_labels=False, rootdir=rdir)
 test_data = DirectDataset(fov, rasterize_size, transform=Grayscale(num_output_channels=3), is_train=False, 
@@ -122,6 +137,8 @@ test_data = DirectDataset(fov, rasterize_size, transform=Grayscale(num_output_ch
 train_dataloader = DataLoader(train_data, batch_size=64, shuffle=True)
 test_dataloader = DataLoader(test_data, batch_size=64, shuffle=True)
 
+next(iter(train_dataloader))
+#%%
 device = 'cuda'
 
 # model = simple_model.SimpleModel()
@@ -148,6 +165,7 @@ if os.path.exists(checkpoint_file0):
     model.load_state_dict(checkpoint['model_state'])
     hist_tra = checkpoint['hist_tra']
     hist_tes = checkpoint['hist_tes']
+
 
 
 #%%
@@ -204,30 +222,14 @@ for n in range(0, 1000):
         inputs  = train_features.to(device)/255.
         targets = train_labels.to(device)
         
-        # break
-        if len(hist_tes) < 250:
-            output, _, _ , _, _, _, _ = model(inputs, tforms=None, render=False)
-            # break
-            params = model.parse_params(output)
-            # closs = F.l1_loss(output[:,-6:], targets[:,:])
-            closs = F.mse_loss(output, targets)
-        else:
-            for g in optimizer.param_groups:
-                g['lr'] = 1e-4
-            
-            # model.freeze_rigid_layers()
-            output, masked_in, rendered_out, mask, plmks, gt_feat, pred_feat = \
-                model(inputs, tforms=None, render=True)
-            
-            plmks[:,:,1] = rasterize_size-plmks[:,:,1]
-            
-            params = model.parse_params(output)
-            # closs = 10*photo_loss(masked_in, rendered_out, mask) + \
-            #             0*reg_loss(params, sa, sb) + \
-            #                 lm_loss(lmks, plmks) + \
-            #                     20*perceptual_loss(gt_feat, pred_feat)
-        
-        (mask, _, ims_out), pr = model.render_image(params)
+        output, _, _ , _, _, _, _ = model(inputs, tforms=None, render=False)
+        params_est = model.parse_params(output)
+        params_gt = model.parse_params(targets)
+        params_gt['tau'][:,-1] = 510
+        closs = F.l1_loss(output, targets)
+
+        (_, _, ims_gt), pr = model.render_image(params_gt)
+        (_, _, ims_est), pr = model.render_image(params_est)
 
         # closs = F.l1_loss(output[:,-6:], targets[:,:]) 
         # loss = F.l1_loss(output[:,:], targets[:,:3]) 
@@ -243,10 +245,16 @@ for n in range(0, 1000):
         # break
     # plt.clf()
     # break
-    plt.imshow(ims_out[0].detach().cpu().numpy()[0,:,:])
-    # plt.plot(lmks[0][:,0], lmks[0][:,1], '.')
-    plt.show()
-      
+        plt.subplot(131)
+        plt.imshow(ims_gt[0].detach().cpu().numpy()[0,:,:])
+        plt.subplot(132)
+        plt.imshow(ims_est[0].detach().cpu().numpy()[0,:,:])
+        plt.subplot(133)
+        plt.imshow(inputs[0].detach().cpu().numpy()[0,:,:])
+        plt.show()
+          
+        break
+    break
     hist_tra.append(train_loss/num_batches)
     
     model.eval()
