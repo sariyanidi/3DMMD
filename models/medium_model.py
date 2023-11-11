@@ -128,7 +128,7 @@ class MediumModel(nn.Module):
             #     nn.init.constant_(m.weight, 0.)
             #     nn.init.constant_(m.bias, 0.)
 
-    def forward(self, input_im, tforms, render=False):
+    def forward(self, input_im, tforms=None, render=False):
         x = self.backbone(input_im)
         if not self.use_last_fc:
             output = []
@@ -156,15 +156,17 @@ class MediumModel(nn.Module):
             # print(input_im.shape)
             # print(rendered_output_3ch.shape)
             # print('------------------------------')
-            self.net_recog.eval()
-            self.net_recog.net.eval()
-            assert self.net_recog.training == False
-            masked_input = masked_input.repeat(1,3,1,1)
-            gt_feat = self.net_recog(masked_input, tforms)
-            # pred_feat = self.net_recog(input_im, tforms)
-            # tforms = tforms.requires_grad(True)
-            # tforms.requires_grad_(True)
-            pred_feat = self.net_recog(rendered_output_3ch, tforms)
+            
+            if tforms is not None:
+                self.net_recog.eval()
+                self.net_recog.net.eval()
+                assert self.net_recog.training == False
+                masked_input = masked_input.repeat(1,3,1,1)
+                gt_feat = self.net_recog(masked_input, tforms)
+                # pred_feat = self.net_recog(input_im, tforms)
+                # tforms = tforms.requires_grad(True)
+                # tforms.requires_grad_(True)
+                pred_feat = self.net_recog(rendered_output_3ch, tforms)
             
         
         return x, masked_input, rendered_output, mask, lmks, gt_feat, pred_feat
