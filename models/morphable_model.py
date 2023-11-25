@@ -331,4 +331,7 @@ class MorphableModel():
         face_color = torch.cat([r, g, b], dim=-1) * face_texture
         return face_color
 
+    
+    def projecect_to_2d(self, mesh, camera):
+        pass
 

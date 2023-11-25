@@ -31,7 +31,7 @@ class MeshRenderer(nn.Module):
     def __init__(self,
                 rasterize_fov,
                 znear=100,
-                zfar=1500, 
+                zfar=3500, 
                 rasterize_size=224,
                 use_opengl=True):
         super(MeshRenderer, self).__init__()

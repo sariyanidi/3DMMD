@@ -5,7 +5,7 @@ Created on Tue Nov  7 07:26:18 2023
 
 @author: v
 """
-
+import cv2
 import torch
 from skimage import transform as trans
 from kornia.geometry import warp_affine
@@ -78,8 +78,33 @@ def extract_5p(lm):
     lm5p = lm5p[[1, 2, 0, 3, 4], :]
     return lm5p
 
+# # utils for face recognition model
+# def estimate_norm(lm_51p, H):
+#     # from https://github.com/deepinsight/insightface/blob/c61d3cd208a603dfa4a338bd743b320ce3e94730/recognition/common/face_align.py#L68
+#     """
+#     Return:
+#         trans_m            --numpy.array  (2, 3)
+#     Parameters:
+#         lm                 --numpy.array  (68, 2), y direction is opposite to v direction
+#         H                  --int/float , image height
+#     """
+#     lm = extract_5p(lm_51p)
+#     lm[:, -1] = H - 1 - lm[:, -1]
+#     tform = trans.SimilarityTransform()
+#     src = np.array(
+#     [[38.2946, 51.6963], [73.5318, 51.5014], [56.0252, 71.7366],
+#      [41.5493, 92.3655], [70.7299, 92.2041]],
+#     dtype=np.float32)
+#     tform.estimate(lm, src)
+#     M = tform.params
+#     if np.linalg.det(M) == 0:
+#         M = np.eye(3)
+
+#     return M[0:2, :]
+
+
 # utils for face recognition model
-def estimate_norm(lm_51p, H):
+def estimate_norm(lm_51p, H, scale=1.5, off=[0,0]):
     # from https://github.com/deepinsight/insightface/blob/c61d3cd208a603dfa4a338bd743b320ce3e94730/recognition/common/face_align.py#L68
     """
     Return:
@@ -91,16 +116,17 @@ def estimate_norm(lm_51p, H):
     lm = extract_5p(lm_51p)
     lm[:, -1] = H - 1 - lm[:, -1]
     tform = trans.SimilarityTransform()
-    src = np.array(
+    src = scale*np.array(
     [[38.2946, 51.6963], [73.5318, 51.5014], [56.0252, 71.7366],
      [41.5493, 92.3655], [70.7299, 92.2041]],
-    dtype=np.float32)
+    dtype=np.float32)+np.array(off).reshape(1,2)
     tform.estimate(lm, src)
     M = tform.params
     if np.linalg.det(M) == 0:
         M = np.eye(3)
 
     return M[0:2, :]
+
 
 def estimate_norm_torch(lm_51p, H):
     lm_51p_ = lm_51p.detach().cpu().numpy()
@@ -110,6 +136,13 @@ def estimate_norm_torch(lm_51p, H):
     M = torch.tensor(np.array(M), dtype=torch.float32).to(lm_51p.device)
     return M
 
+
+
+
+def resize_n_crop_cv(image, M, dsize=112):
+    # image: (b, c, h, w)
+    # M   :  (b, 2, 3)
+    return cv2.warpAffine(image, M, dsize=(dsize, dsize))
 
 
 
