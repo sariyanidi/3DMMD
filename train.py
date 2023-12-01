@@ -198,11 +198,11 @@ optimizer = torch.optim.Adam(model.parameters(), lr=1e-5)
 hist_tra = []
 hist_tes = []
 
-checkpoint_dir = 'checkpoints'
+checkpoint_dir = 'checkpointsNew'
 
 os.makedirs(checkpoint_dir, exist_ok=True)
-checkpoint_file0 = f'{checkpoint_dir}/medium_modelss{fov:.2f}.pth'
-
+checkpoint_file0 = f'{checkpoint_dir}/medium_modelss{fov:.2f}N.pth'
+checkpoint_file0 = 'checkpointsNew/medium_modelsv_0003230.00_MANUAL.pth'
 if os.path.exists(checkpoint_file0):
     checkpoint = torch.load(checkpoint_file0)
     model.load_state_dict(checkpoint['model_state'])
@@ -236,14 +236,14 @@ def perceptual_loss(id_featureA, id_featureB):
     return torch.sum(1 - cosine_d) / cosine_d.shape[0]  
 
 
-def reg_loss(params, sa, sb, l1=0.0000005, l2=0.00001, l3=1000.002):
+def reg_loss(params, sa, sb, l1=0.00000001, l2=0.000001, l3=1000.002):
     # sa: sigma alphas (st dev of shape)
     return l1*torch.linalg.norm(params['alpha']/sa)/params['alpha'].shape[1] + \
         l2*torch.linalg.norm(params['beta']/sb)/params['beta'].shape[1] + \
-            l3*torch.linalg.norm(params['exp'])/79.
+            0*l3*torch.linalg.norm(params['exp'])/79.
 
 
-def lm_loss(lmks, plmks, lmd1=0.5):
+def lm_loss(lmks, plmks, lmd1=2.0):
     B = lmks.shape[0]
     L = lmks.shape[1]
     return lmd1*torch.sum((lmks.reshape(B,-1)-plmks.reshape(B,-1))**2)/(B*L*rasterize_size)
@@ -253,7 +253,7 @@ sa = model.mm.sigma_alphas
 sb = model.mm.sigma_betas
 
 
-for n in range(0, 1000):
+for n in range(0, 510000):
     print(f'{n} ({len(hist_tes)})')
     
     train_loss = 0
@@ -272,7 +272,7 @@ for n in range(0, 1000):
             closs = F.l1_loss(output[:,-6:], targets[:,:])
         else:
             for g in optimizer.param_groups:
-                g['lr'] = 1e-4
+                g['lr'] = 1e-8
             
             # model.freeze_rigid_layers()
             output, masked_in, rendered_out, mask, plmks, gt_feat, pred_feat = \
@@ -281,11 +281,14 @@ for n in range(0, 1000):
             plmks[:,:,1] = rasterize_size-plmks[:,:,1]
             
             params = model.parse_params(output)
-            closs = 10*photo_loss(masked_in, rendered_out, mask) + \
-                        0*reg_loss(params, sa, sb) + \
-                            lm_loss(lmks, plmks) + \
-                                20*perceptual_loss(gt_feat, pred_feat)
-        
+            # closs = 10*photo_loss(masked_in, rendered_out, mask) + \
+            #             reg_loss(params, sa, sb) + \
+            #                 lm_loss(lmks, plmks) + \
+            #                     20*perceptual_loss(gt_feat, pred_feat)
+                                
+            # closs = photo_loss(masked_in, rendered_out, mask)
+            closs = perceptual_loss(gt_feat, pred_feat) +  lm_loss(lmks, plmks)
+                    
         (mask, _, ims_out), pr = model.render_image(params)
 
         # closs = F.l1_loss(output[:,-6:], targets[:,:]) 
@@ -328,26 +331,22 @@ for n in range(0, 1000):
                 output, masked_in, rendered_out, mask, plmks, gt_feat, pred_feat = model(inputs, tforms=tforms, render=True)
                 plmks[:,:,1] = rasterize_size-plmks[:,:,1]
                 params = model.parse_params(output)
-                print(params['alpha'].abs()[:,:4])
 
                 # closs = F.l1_loss(output[:,-6:], targets[:,:]) + \
                     # photo_loss(masked_in, rendered_out, mask) + \
                         # reg_loss(params) + \
                             # lm_loss(lmks, plmks) + \
                                 # perceptual_loss(gt_feat, pred_feat)     
-                closs = 10*photo_loss(masked_in, rendered_out, mask) + \
-                            0*reg_loss(params, sa, sb) + \
-                                lm_loss(lmks, plmks) + \
-                                    20*perceptual_loss(gt_feat, pred_feat)
-                            
+                # closs = photo_loss(masked_in, rendered_out, mask)
+                
             tes_loss += closs.item() #* inputs.size(0)
-            
             num_batches += 1
         
         hist_tes.append(tes_loss/num_batches)
+        print(params['alpha'].abs()[:,:4])
         
         if n > 1 and (hist_tes[-1] < min(hist_tes[:-1])):
-            checkpoint_file = f'{checkpoint_dir}/medium_modelsv_{n:05d}{fov:.2f}.pth'
+            checkpoint_file = f'{checkpoint_dir}/medium_modelsv_{n:05d}{fov:.2f}_MANUAL.pth'
 
             checkpoint = {
                 "model_state": model.state_dict(),
@@ -366,7 +365,8 @@ for n in range(0, 1000):
         plt.clf()
         # plt.semilogy(hist_tra[25:])
         if plmks is not None:
-            plt.semilogy(hist_tes[25:])
+            plt.semilogy(hist_tra[-n:])
+            plt.semilogy(hist_tes[-n:])
         else:
             plt.semilogy(hist_tes)
 

@@ -23,7 +23,7 @@ from data import DirectDataset
 
 mm = morphable_model.MorphableModel()
 
-fov = 20
+fov = 15
 
 cx = 112
 rasterize_size = 2*cx
@@ -41,12 +41,17 @@ normalize_labels = True
 device = 'cuda'
 which_model = 'medium_model'
 tform_data = True
+cfgid = 2
 
 train_data = DirectDataset(fov, rasterize_size, transform=Grayscale(num_output_channels=3), is_train=True, 
-                           normalize_labels=normalize_labels, rootdir=rdir, which_bfm=which_bfm, do_tform=tform_data)
+                           normalize_labels=normalize_labels, rootdir=rdir, which_bfm=which_bfm, cfgid=cfgid, do_tform=tform_data)
 test_data = DirectDataset(fov, rasterize_size, transform=Grayscale(num_output_channels=3), is_train=False, 
-                           normalize_labels=normalize_labels, rootdir=rdir, which_bfm=which_bfm)
+                           normalize_labels=normalize_labels, rootdir=rdir, which_bfm=which_bfm, cfgid=cfgid)
 
+
+# train_data.check_one_by_one()
+
+#%%
 label_stds = None
 label_means = None
 
@@ -54,11 +59,8 @@ if normalize_labels:
     label_stds = torch.from_numpy(train_data.stds).to(device)
     label_means = torch.from_numpy(train_data.means).to(device)
 
-train_dataloader = DataLoader(train_data, batch_size=64, shuffle=True, num_workers=4)
-test_dataloader = DataLoader(test_data, batch_size=64, shuffle=True, num_workers=4)
-
-# model = simple_model.SimpleModel()
-# model = medium_model.MediumModel(rasterize_fov=fov, rasterize_size=rasterize_size)
+train_dataloader = DataLoader(train_data, batch_size=64, shuffle=True, num_workers=1)
+test_dataloader = DataLoader(test_data, batch_size=64, shuffle=True, num_workers=1)
 
 model = medium_model.MediumModel(rasterize_fov=fov, rasterize_size=rasterize_size,
                                        label_stds=label_stds, label_means=label_means,
@@ -66,9 +68,6 @@ model = medium_model.MediumModel(rasterize_fov=fov, rasterize_size=rasterize_siz
 
 model = model.to(device)
 # scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, args.scheduler_step_size)
-
-
-
 
 # model.freeze_all_but_rigid_layers()
 hist_tes = {'rigid':[], 'all':[], 'nonrigid': []}
@@ -89,7 +88,7 @@ else:
 
 Ntra = train_data.ntot_samples()
 os.makedirs(checkpoint_dir, exist_ok=True)
-checkpoint_file0 = f'{checkpoint_dir}/{which_model}{fov:.2f}{dbname}{model.which_backbone}{Ntra}{tform_data}{learning_rate}{which_bfm}UNL.pth'
+checkpoint_file0 = f'{checkpoint_dir}/{which_model}{fov:.2f}{dbname}{model.which_backbone}{Ntra}{tform_data}{learning_rate}-{cfgid}-{which_bfm}UNL.pth'
 
 if os.path.exists(checkpoint_file0):
     checkpoint = torch.load(checkpoint_file0)
@@ -143,11 +142,8 @@ for n in range(0, 10000):
         closs.backward()
         optimizer.step()
         num_batches += 1
-        # if num_batches == 200:
-            # break
-    
-    
-    
+        if num_batches == 300:
+            break
     
     
     hist_tra[phase].append(train_loss/num_batches)
@@ -178,7 +174,7 @@ for n in range(0, 10000):
         hist_tes[phase].append(tes_loss/num_batches)
         
         if n > 2 and (hist_tes[phase][-1] < min(hist_tes[phase][-n:-1])):
-            checkpoint_file = f'{checkpoint_dir}/{which_model}{fov:.2f}{dbname}{model.which_backbone}{which_bfm}_{n:05d}.pth'
+            checkpoint_file = f'{checkpoint_dir}/{which_model}{fov:.2f}{dbname}{model.which_backbone}-{cfgid}-{which_bfm}_{n:05d}.pth'
 
 
             checkpoint = {

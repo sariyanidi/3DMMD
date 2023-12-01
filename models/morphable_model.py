@@ -26,11 +26,13 @@ class MorphableModel():
     
     
     def __init__(self, key='BFMmm-19830', data_rootdir='./data', device='cuda',
-                 im_w=512.0, im_h=512.0):
+                 im_w=512.0, im_h=512.0, inv_y=True):
         self.data_dir = f'{data_rootdir}/{key}'
         self.device = device
         X0 = torch.from_numpy(np.loadtxt(f'{self.data_dir}/X0_mean.dat')).unsqueeze(1).T # [1, N]
         Y0 = -torch.from_numpy(np.loadtxt(f'{self.data_dir}/Y0_mean.dat')).unsqueeze(1).T # [1, N]
+        # if inv_y:
+            # Y0 = -Y0
         Z0 = torch.from_numpy(np.loadtxt(f'{self.data_dir}/Z0_mean.dat')).unsqueeze(1).T # [1, N]
         self.li = torch.from_numpy(np.loadtxt(f'{self.data_dir}/lmks.dat')).type(torch.int64).to(self.device)
 
@@ -41,6 +43,9 @@ class MorphableModel():
 
         self.sigma_alphas = torch.from_numpy(np.loadtxt(f'{self.data_dir}/sigma_alphas.dat')).float().to(self.device) # [1, N]
         self.sigma_betas = torch.from_numpy(np.loadtxt(f'{self.data_dir}/sigma_alphas.dat')).float().to(self.device) # [1, N]
+        
+        self.eps_upper = 2.5*torch.from_numpy(np.loadtxt(f'{self.data_dir}/E/sigma_epsilons_79_upperv2.dat')).float().to(self.device)
+        self.eps_lower = 2.5*torch.from_numpy(np.loadtxt(f'{self.data_dir}/E/sigma_epsilons_79_lowerv2.dat')).float().to(self.device)
         
         self.mean_shape = torch.cat((X0, Y0, Z0), axis=0).T.reshape(-1,1).float().to(self.device)
         self.mean_tex   = torch.from_numpy(np.loadtxt(f'{self.data_dir}/tex_mu.dat')).reshape(-1,1).float().to(self.device)
@@ -88,6 +93,7 @@ class MorphableModel():
         
         @return 3D mesh; a matrix of shape [B, 3N]
         """
+        
         B = alpha.shape[0]
         dface_shape = (alpha @ self.I.T)
        
@@ -332,6 +338,11 @@ class MorphableModel():
         return face_color
 
     
-    def projecect_to_2d(self, mesh, camera):
-        pass
+    def project_to_2d(self, camera, u, tau, alpha, eps=None):
+            
+        R = self.compute_rotation_matrix_from_eulerrod(u)
+        mesh = self.compute_face_shape(alpha, eps)
+        mesh = self.view_transform(mesh, R, tau)
+        return camera.map_to_2d(mesh)
+        
 

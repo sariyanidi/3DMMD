@@ -19,11 +19,14 @@ import sys
 
 from utils import utils
 
-sdir = '/offline_data/face/yt_faces2/images/'#sys.argv[1]
-ddir = '/online_data/face/yt_faces2/yt_cropped2/'#sys.argv[2]
+# sdir = '/offline_data/face/yt_faces2/images/'#sys.argv[1]
+# ddir = '/online_data/face/yt_faces2/yt_cropped2/'#sys.argv[2]
+
+# ddir = '/online_data/face/img_align_celeba/cropped_celeba'
+
 
 sdir = '/online_data/face/img_align_celeba/images'
-ddir = '/online_data/face/img_align_celeba/cropped_celeba'
+ddir = '/online_data/face/combined_celeb_ytfaces'
 
 os.makedirs(ddir, exist_ok=True)
 

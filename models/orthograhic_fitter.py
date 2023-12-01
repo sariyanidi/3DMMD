@@ -20,7 +20,6 @@ import matplotlib.pyplot as plt
 
 class OrthographicFitter():
     
-    
     def __init__(self, mm):
         self.mm = mm
         x0 = self.mm.mean_shape[::3][self.mm.li].reshape(-1,1).cpu().numpy()
@@ -30,7 +29,6 @@ class OrthographicFitter():
         self.p0L = np.concatenate((x0, y0, z0), axis=1).T
         self.p0L -= self.p0L.mean(axis=1).reshape(-1,1)
         # self.p0L /= np.std(self.p0L)
-        
     
     def compute_gradient_and_hessian(self, x, lmks):
         taux = x[0]
@@ -121,7 +119,7 @@ class OrthographicFitter():
         tauy = tauy0
         sigmax = sigma0
         sigmay = sigma0
-    
+        
         xmean = np.mean(lmks[:,0])
         ymean = np.mean(lmks[:,1])
         

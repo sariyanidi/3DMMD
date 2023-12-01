@@ -5,6 +5,7 @@ Created on Tue Nov 14 12:21:00 2023
 
 @author: sariyanide
 """
+import os
 import torch
 import numpy as np
 from glob import glob
@@ -20,13 +21,14 @@ class DirectDataset(Dataset):
                  is_train=True,
                  transform=None, normalize_labels=False,
                  which_bfm='BFMmm-19830', 
+                 cfgid=2,
                  do_tform=False):
         self.rootdir = rootdir
         # self.extn = 'label0000'
         self.fov = fov
         self.rasterize_size = rasterize_size
-        self.extn = f'label_post{self.fov}{which_bfm}'
-        self.extn_pre = f'label{self.fov}{which_bfm}'
+        self.extn = f'label_post{self.fov}-{cfgid}-{which_bfm}'
+        self.extn_pre = f'label{self.fov}-{cfgid}-{which_bfm}'
         self.extn_euler = f'label_eulerrod2{self.fov:.2f}'
         self.normalize_labels = normalize_labels
         self.do_tform = do_tform
@@ -47,7 +49,7 @@ class DirectDataset(Dataset):
         self.transform = transform
         
         Ntot = len(all_label_paths)
-        Ntra = int(0.93*Ntot)
+        Ntra = int(0.96*Ntot)
         
         self.stds = None
         self.means = None
@@ -111,6 +113,15 @@ class DirectDataset(Dataset):
 
     def __len__(self):
         return len(self.label_paths)
+    
+    
+    
+    def check_one_by_one(self):
+        for n in range(len(self.label_paths)):
+            print(os.path.basename(self.label_paths[n]))
+            self.__getitem__(n)
+    
+    
 
     def process_and_save_label(self, prelabel_fpath):
         label = np.loadtxt(prelabel_fpath)
@@ -142,6 +153,9 @@ class DirectDataset(Dataset):
         image = read_image(img_fpath).float()/255.0
         label = np.loadtxt(label_fpath)
         
+        
+        # print(label)
+        # print(image.shape)
         
         # rigid_label = np.loadtxt(rigid_label_fpath)
         

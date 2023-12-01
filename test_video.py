@@ -23,7 +23,7 @@ from torchvision.transforms import Grayscale
 
 device = 'cuda'
 
-fov = 20
+fov = 15
 rasterize_size = 224
 rdir = '/online_data/face/yt_faces2/yt_cropped2'#sys.argv[2]
 # rdir = '/online_data/face/yt_faces/yt_cropped'#sys.argv[2]
@@ -39,7 +39,7 @@ checkpoint_dir = 'checkpoints_norm'
 
 which_bfm = 'BFMmm-23660'
 
-
+cfgid =2
 Ntot = 81827
 learning_rate = 1e-5
 backbone = 'resnet50'
@@ -47,8 +47,11 @@ tform_data= True
 init_path_id = f'{checkpoint_dir}/medium_model{fov:.2f}{dbname}{backbone}{Ntot}{tform_data}{learning_rate}{which_bfm}.pth'
 # init_path_id = f'{checkpoint_dir}/medium_model{fov:.2f}{dbname}{backbone}{which_bfm}_02381.pth'
 
-init_path_id = f'{checkpoint_dir}/medium_model20.00combined_celeb_ytfacesresnet50BFMmm-23660_01711.pth'
-init_path_id = f'{checkpoint_dir}/medium_model20.00combined_celeb_ytfacesresnet5081866True1e-05BFMmm-23660.pth'
+# init_path_id = f'{checkpoint_dir}/medium_model20.00combined_celeb_ytfacesresnet50BFMmm-23660_01711.pth'
+# init_path_id = f'{checkpoint_dir}/medium_model20.00combined_celeb_ytfacesresnet5081866True1e-05BFMmm-23660.pth'
+
+init_path_id = f'{checkpoint_dir}/medium_model15.00combined_celeb_ytfacesresnet50351639True1e-05-{cfgid}-BFMmm-23660UNL.pth'
+
 checkpoint_id = torch.load(init_path_id)
 model_id = models.medium_model.MediumModel(rasterize_fov=fov, rasterize_size=rasterize_size, 
                                         label_means=checkpoint_id['label_means'].to(device), 
@@ -75,7 +78,7 @@ init_path_perframe = init_path_id
 # medium_model20.00combined_celeb_ytfacesresnet501True1e-05BFMmm-23660.pth
 
 
-checkpoint = torch.load('checkpoints_norm/sep_modelv3SP20.00combined_celeb_ytfacesresnet501e-05True81866.pth')
+checkpoint = torch.load(f'checkpoints_norm/sep_modelv3SP15.00combined_celeb_ytfacesresnet501e-05{cfgid}True139979.pth')
 model = models.separated_model.SeparatedModelV3(rasterize_fov=fov, rasterize_size=rasterize_size,
                                         label_means=checkpoint_id['label_means'].to(device), 
                                         label_stds=checkpoint_id['label_stds'].to(device),
@@ -134,16 +137,16 @@ def crop_frame(frame, lmks):
 
 vpath = '/home/sariyanide/code/3DMMD/ML0001_2.mp4'
 # vpath = '/home/sariyanide/code/3DMMD/out.mp4'
-
-csv = pd.read_csv(vpath.replace('mp4', 'csv'))
+csvpath = vpath.replace('mp4', 'csv')
+# vpath = '/offline_data/face/CAR/InfantSync/videos/id-IS015_m-tc_cond-is_adm-001_n-20201119131510_2.mp4'
+# csvpath = '/offline_data/face/CAR/InfantSync/videos/id-IS015_m-tc_cond-is_adm-001_n-20201119131510_2.csv'
+csv = pd.read_csv(csvpath)
 
 L = csv.values[:,1:]
 cap = cv2.VideoCapture(vpath)
 
 
 transform_gray = Grayscale(num_output_channels=3)
-
-
 
 
 betas_un = []
@@ -191,12 +194,6 @@ while(True):
     rim[mask==1] = (cim0[mask==1]+2*rim[mask==1])/3.0
     
 
-    # y, alpha, beta = model(cim)
-    # params_un = model.parse_params_unnormalized(y, alpha, beta)
-    # params = model.parse_params(y, alpha, beta)
-    
-
-
     p = mm.compute_face_shape(params['alpha'], params['exp'])
     p = p.detach().cpu().squeeze().numpy()
     
@@ -225,7 +222,7 @@ while(True):
     alphas.append(params['alpha'])
     betas.append(params['beta'])
     
-    if frame_idx >= 1200:
+    if frame_idx >= 600:
         break
 
 
@@ -251,6 +248,7 @@ from time import time
 
 cap = cv2.VideoCapture(vpath)
 
+os.makedirs('figures', exist_ok=True)
 exps = []
 poses = []
 illums = []
@@ -265,6 +263,8 @@ while(True):
     if not ret:
         break 
     
+    if frame_idx < 1160:
+        continue
     # if frame_idx % 3 != 0:
         # continue
     
@@ -287,7 +287,7 @@ while(True):
     cangles = []
     t0 = time()
 
-    for nrep in range(2):
+    for nrep in range(1):
         lmks68 = L[frame_idx-1,:].reshape(-1,2).astype(np.float32)
         cim = copy.deepcopy(frame).astype(np.float32)/255.0
         lmks68[:,1] = cim.shape[0]-lmks68[:,1]
@@ -300,12 +300,17 @@ while(True):
         
         # y = model_id(cim)[0]
         # params = model_id.parse_params(y)
-        
-        y = model.test(cim, alpha, betas[0])
-        # y = model.forward(cim)[0]
-        params = model.parse_params(y, alpha_un, beta_un)
+        # 
+        y, alpha_un, beta_un, _ = model.forward(cim)
+        paramstmp = model.parse_params(y, alpha_un, beta_un)
+        y = model.test(cim, paramstmp['alpha'], paramstmp['beta'])
+        # y, alpha_un, beta_un, _ = model.forward(cim)
+        params = model.parse_params(y, alpha_un, betas_un[10])
+        cexps.append(params['exp'].detach().squeeze().cpu().numpy())
         cexps.append(params['exp'].detach().squeeze().cpu().numpy())
         ctaus.append(params['tau'].detach().squeeze().cpu().numpy())
+        ctaus.append(params['tau'].detach().squeeze().cpu().numpy())
+        cangles.append(params['angles'].detach().squeeze().cpu().numpy())
         cangles.append(params['angles'].detach().squeeze().cpu().numpy())
         
     tf = time()
@@ -316,10 +321,9 @@ while(True):
     # p = mm.compute_face_shape( alpha, params['exp'])
     p = mm.compute_face_shape( params['alpha'], params['exp'])
     p = p.detach().cpu().squeeze().numpy()
-    
-    """    
-    plt.figure(frame_idx, figsize=(30*1.5,10*1.5))
-    (mask, _, rim), pr = model_id.render_image(params)
+
+    plt.figure(frame_idx, figsize=(45*0.65,10*0.65))
+    (mask, _, rim), pr = model.render_image(params)
 
     # plt.plot(params['exp'][0].detach().cpu(), alpha=0.4)
     plt.subplot(151)
@@ -341,8 +345,10 @@ while(True):
     # plt.plot(p0[:,2], p0[:,1], '.')
     plt.plot(p[:,2], p[:,1], '.')
     plt.ylim((-90, 90))
+    plt.savefig(f'figures/{frame_idx:04d}.jpg', bbox_inches='tight')
+    plt.show()
     """
-
+    """
     cexps = np.array(cexps)
     ctaus = np.array(ctaus)
     cangles = np.array(cangles)
@@ -352,9 +358,9 @@ while(True):
     
     exps.append(np.mean(cexps, axis=0))
     poses.append(pose)
-    """   """
     
-    plt.show()
+    if frame_idx == 1600:
+        break
     # break
 
 #%%
@@ -363,7 +369,7 @@ tex = np.loadtxt('/home/sariyanide/code/3DI/build/models/MMs/BFMmm-23660/tex_mu.
 T = frame_idx
 bn = os.path.basename(vpath)
 illums = np.tile([48.06574, 9.913327, 798.2065, 0.005], (T, 1))
-ddir = '/offline_data/face/yt_faces2/3DID'
+ddir = '/offline_data/tmp/vids/'
 shpsm_fpath = f'{ddir}/{bn}.shapesm'
 tex_fpath = f'{ddir}/{bn}.betas'
 illums_fpath = f'{ddir}/{bn}.illums'

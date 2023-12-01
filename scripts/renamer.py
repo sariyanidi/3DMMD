@@ -10,71 +10,41 @@ import os
 import sys
 from glob import glob
 
-fov = 20
-# which_bfm = 'BFMmm-19830'
+cfgid = 2
+fov = 15
 which_bfm = 'BFMmm-23660'
+sdir = f'/online_data/face/combined_celeb_ytfaces-labels/3DI-{cfgid}-{fov}-{which_bfm}'
+dbname = 'celeb' # 'celeb'
 
-# sdir = f'/online_data/face/yt_faces2/3DI/OD0.6_OE1.7_OB0.7_RS78_IN0_SF0_CF0.42NF7_NTC7_UL0_CB1GLOBAL79_IS0K7440.75P1{which_bfm}/{fov}' #sys.argv[1]
-sdir = f'/online_data/face/yt_faces2/3DI/OD0.6_OE1.7_OB2.7_RS78_IN0_SF0_CF0.42NF7_NTC7_UL0_CB1GLOBAL79_IS0K7440.75P1{which_bfm}/{fov}'
-print(sdir)
-ddir = '/online_data/face/combined_celeb_ytfaces'
-#%%
-
-files = glob(f'{sdir}/*vars')
-
-for f in files:
-    bn = os.path.basename(f)
-    bn = bn[:9]
+if dbname == 'ytfaces':
+    files = glob(f'{sdir}/id*vars')
+elif dbname == 'celeb':
+    files = glob(f'{sdir}/[0-9]*vars')
     
-    print(bn)
-    tf = f'{ddir}/{bn}.label{fov}{which_bfm}'
-    cmd = f'cp {f} {tf}'
-    print(cmd)
-    os.system(cmd)
-
-
-
-
-#%%
-sdir = f'/online_data/face/CelebAMask-HQ/3DI/OD0.6_OE1.7_OB0.7_RS78_IN0_SF0_CF0.42NF1_NTC7_UL0_CB1GLOBAL79_IS0K7440.75P1{which_bfm}/{fov}'
-files = glob(f'{sdir}/*vars')
-
-
-
-for f in files:
-    bn = os.path.basename(f).split('.')[0].split('_')[0]
-    # bn = bn[:9]
-    
-    print(bn)
-    tf = f'{ddir}/{bn}.label{fov}{which_bfm}'
-    cmd = f'cp {f} {tf}'
-    print(cmd)
-    os.system(cmd)
-
-
-
-
-
-#%%
-sdir = f'/online_data/face/img_align_celeba/3DI/OD0.6_OE1.7_OB0.7_RS78_IN0_SF0_CF0.42NF1_NTC7_UL0_CB1GLOBAL79_IS0K7440.75P1{which_bfm}/{fov}'
-files = glob(f'{sdir}/*vars')
 
 ddir = '/online_data/face/combined_celeb_ytfaces'
 
 
-for f in files:
-    bn = os.path.basename(f).split('.')[0].split('_')[0]
+for fi, f in enumerate(files):
+    if dbname == 'ytfaces':
+        bn = os.path.basename(f).split('.')[0].split('_co b')[0]
+    elif dbname == 'celeb':
+        bn = os.path.basename(f).split('.')[0].split('_')[0]
+    
     # bn = bn[:9]
     
-    tf = f'{ddir}/{bn}.label{fov}{which_bfm}'
+    tf = f'{ddir}/{bn}.label{fov}-{cfgid}-{which_bfm}'
+    
+    if fi % 1000 == 0:
+        print(fi)
     
     if os.path.exists(tf):
         continue
-    print(bn)
+    # print(bn)
     
     cmd = f'cp {f} {tf}'
-    # print(cmd)
+    print(cmd)
     os.system(cmd)
-
+    # break
 
 

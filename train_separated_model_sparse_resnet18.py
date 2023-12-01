@@ -20,7 +20,7 @@ from data import DirectDataset
 import matplotlib.pyplot as plt
 from models import morphable_model, separated_model
 
-fov = 20
+fov = 15
 
 cx = 112
 rasterize_size = 2*cx
@@ -38,6 +38,8 @@ backbone = 'resnet50'
 
 learning_rate = 1e-5
 
+cfgid = 2
+
 dbname = os.path.basename(rdir)
 which_bfm = 'BFMmm-23660'
 which_resnet = 'resnet50'
@@ -47,9 +49,9 @@ tform_data = True
 
 
 train_data = DirectDataset(fov, rasterize_size, transform=Grayscale(num_output_channels=3), is_train=True, 
-                           normalize_labels=normalize_labels, rootdir=rdir, which_bfm=which_bfm, do_tform=tform_data)
+                           normalize_labels=normalize_labels, rootdir=rdir, which_bfm=which_bfm, cfgid=cfgid, do_tform=tform_data)
 test_data = DirectDataset(fov, rasterize_size, transform=Grayscale(num_output_channels=3), is_train=False, 
-                          normalize_labels=normalize_labels, rootdir=rdir, which_bfm=which_bfm)
+                          normalize_labels=normalize_labels, rootdir=rdir, cfgid=cfgid, which_bfm=which_bfm)
 
 
 if not normalize_labels:
@@ -65,12 +67,13 @@ if normalize_labels:
     label_stds = torch.from_numpy(train_data.stds).to(device)
     label_means = torch.from_numpy(train_data.means).to(device)
 
-Ntra = 81866
+Ntra = 139979
 learning_rate = 1e-5
 
-
 # init_path_id = f'{checkpoint_dir}/medium_model{fov:.2f}{dbname}{backbone}{which_bfm}_02381.pth'
-init_path_id = f'{checkpoint_dir}/medium_model{fov:.2f}{dbname}{backbone}{Ntra}{tform_data}{learning_rate}{which_bfm}.pth'
+init_path_id = f'{checkpoint_dir}/medium_model{fov:.2f}{dbname}{backbone}{Ntra}{tform_data}{learning_rate}-{cfgid}-{which_bfm}UNL_STORED.pth'
+#%%
+
 
 init_path_perframe = init_path_id
 
@@ -115,7 +118,8 @@ phase = 'all'
 
 
 os.makedirs(checkpoint_dir, exist_ok=True)
-checkpoint_file0 = f'{checkpoint_dir}/{which_model}SP{fov:.2f}{dbname}{backbone}{learning_rate}{tform_data}{Ntra}.pth'
+checkpoint_file0 = f'{checkpoint_dir}/{which_model}SP{fov:.2f}{dbname}{backbone}{learning_rate}{cfgid}{tform_data}{Ntra}_V2.pth'
+
 
 if os.path.exists(checkpoint_file0):
     checkpoint = torch.load(checkpoint_file0)

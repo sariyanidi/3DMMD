@@ -24,8 +24,6 @@ import models
 from torchvision.io import read_image
 
 
-
-
 from utils import utils
 
 rdir = '/online_data/face/yt_faces2/yt_cropped2'#sys.argv[2]
