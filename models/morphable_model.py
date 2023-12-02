@@ -30,9 +30,9 @@ class MorphableModel():
         self.data_dir = f'{data_rootdir}/{key}'
         self.device = device
         X0 = torch.from_numpy(np.loadtxt(f'{self.data_dir}/X0_mean.dat')).unsqueeze(1).T # [1, N]
-        Y0 = -torch.from_numpy(np.loadtxt(f'{self.data_dir}/Y0_mean.dat')).unsqueeze(1).T # [1, N]
-        # if inv_y:
-            # Y0 = -Y0
+        Y0 = torch.from_numpy(np.loadtxt(f'{self.data_dir}/Y0_mean.dat')).unsqueeze(1).T # [1, N]
+        if inv_y:
+            Y0 = -Y0
         Z0 = torch.from_numpy(np.loadtxt(f'{self.data_dir}/Z0_mean.dat')).unsqueeze(1).T # [1, N]
         self.li = torch.from_numpy(np.loadtxt(f'{self.data_dir}/lmks.dat')).type(torch.int64).to(self.device)
 
@@ -61,11 +61,15 @@ class MorphableModel():
         self.point_buf = self.get_point_buf()
         
         IX = torch.from_numpy(np.loadtxt(f'{self.data_dir}/IX.dat')).unsqueeze(2).float().to(self.device) # [N, Kid, 1]
-        IY = -torch.from_numpy(np.loadtxt(f'{self.data_dir}/IY.dat')).unsqueeze(2).float().to(self.device) # [N, Kid, 1]
+        IY = torch.from_numpy(np.loadtxt(f'{self.data_dir}/IY.dat')).unsqueeze(2).float().to(self.device) # [N, Kid, 1]
+        if inv_y:
+            IY = -IY
         IZ = torch.from_numpy(np.loadtxt(f'{self.data_dir}/IZ.dat')).unsqueeze(2).float().to(self.device) # [N, Kid, 1]
         
         EX = torch.from_numpy(np.loadtxt(f'{self.data_dir}/E/EX_79.dat')).unsqueeze(2).float().to(self.device) # [N, Kexp, 1]
-        EY = -torch.from_numpy(np.loadtxt(f'{self.data_dir}/E/EY_79.dat')).unsqueeze(2).float().to(self.device) # [N, Kexp, 1]
+        EY = torch.from_numpy(np.loadtxt(f'{self.data_dir}/E/EY_79.dat')).unsqueeze(2).float().to(self.device) # [N, Kexp, 1]
+        if inv_y:
+            EY = -EY
         EZ = torch.from_numpy(np.loadtxt(f'{self.data_dir}/E/EZ_79.dat')).unsqueeze(2).float().to(self.device) # [N, Kexp, 1]
         
         self.Kid = IX.shape[1]
@@ -344,5 +348,18 @@ class MorphableModel():
         mesh = self.compute_face_shape(alpha, eps)
         mesh = self.view_transform(mesh, R, tau)
         return camera.map_to_2d(mesh)
+    
+    
+    def update_mean_face(self, alpha):
+        
+        if len(alpha.shape) == 1:
+            alpha = alpha.unsqueeze(0)
+        
+        p_neutral = self.compute_face_shape(alpha.to(self.device))
+        
+        self.mean_shape = p_neutral.flatten().unsqueeze(-1)
+        
+            
+
         
 

@@ -28,7 +28,7 @@ import matplotlib.pyplot as plt
 class PerspectiveFitter():
     
     def __init__(self, mm, cam, F=7, use_ineq=False, use_maha=True, which_pts='all', 
-                 maha2_threshold=400.0,
+                 maha2_threshold=256.0,
                  which_basis='identity'):
         self.mm = mm
         self.F = F
@@ -64,8 +64,8 @@ class PerspectiveFitter():
         
         
         if self.which_basis == 'identity':
-            self.alpha_ub = 15*self.mm.sigma_alphas.reshape(1,-1)
-            self.alpha_lb = -15*self.mm.sigma_alphas.reshape(1,-1)
+            self.alpha_ub = 6*self.mm.sigma_alphas.reshape(1,-1)
+            self.alpha_lb = -6*self.mm.sigma_alphas.reshape(1,-1)
         elif self.which_basis == 'expression':
             self.alpha_ub = self.mm.eps_upper.reshape(1,-1)
             self.alpha_lb = self.mm.eps_lower.reshape(1,-1)
@@ -82,7 +82,6 @@ class PerspectiveFitter():
     
     
     def parse_vars(self, x, f):
-                
         (alpha_i, taux_i, tauy_i, tauz_i, u_i) = self.parse_vars_idx(f)
         alpha = x[alpha_i:alpha_i+self.num_components]
         taux = x[taux_i]
@@ -123,14 +122,13 @@ class PerspectiveFitter():
         R = R.float()
         dR_du = dR_du.float()
         
+        alpha = alpha.unsqueeze(0)
         if self.which_basis == 'identity':
-            alpha = alpha.unsqueeze(0)
-            exp = None
+            p = self.mm.compute_face_shape(alpha, None).squeeze().T
         elif self.which_basis == 'expression':
-            exp = alpha.unsqueeze(0)
-            alpha = torch.zeros((1, self.mm.Kid)).to(self.mm.device)
-    
-        p = self.mm.compute_face_shape(alpha, exp).squeeze().T
+            # exp = alpha.unsqueeze(0)
+            alpha_ = torch.zeros((1, self.mm.Kid)).to(self.mm.device)    
+            p = self.mm.compute_face_shape(alpha_, alpha).squeeze().T
         
         p = p[:,self.pts_indices]
 
@@ -145,7 +143,6 @@ class PerspectiveFitter():
         
         inv_vz = 1./vz
         inv_vz2 = (inv_vz)**2
-        
         
         if self.which_basis == 'identity':
             IR = self.mm.I.reshape(-1, 3, self.num_components).permute(2,0,1)
@@ -198,11 +195,10 @@ class PerspectiveFitter():
         obj = torch.sum(diffx**2) + torch.sum(diffy**2)
         
         hessian = nabla2F
-
+        
         if self.use_ineq and f == 0:
-            
-            print(alpha.shape)
-            print(self.alpha_ub.shape)
+            # print(alpha.shape)
+            # print(self.alpha_ub.shape)
             
             f_alpha_ub = alpha-self.alpha_ub
             f_alpha_lb = self.alpha_lb-alpha
@@ -216,9 +212,9 @@ class PerspectiveFitter():
             
             nablaf_alpha_ub =  torch.diag(-1.0/f_alpha_ub.flatten())
             nablaf_alpha_lb = -torch.diag(-1.0/f_alpha_lb.flatten())
-            print(f_alpha_ub.shape)
-            print(nablaf_alpha_ub.shape)
-            print(nablaf_alpha_lb.shape)
+            # print(f_alpha_ub.shape)
+            # print(nablaf_alpha_ub.shape)
+            # print(nablaf_alpha_lb.shape)
 
             
             nablaf_alpha = torch.sum(nablaf_alpha_ub+nablaf_alpha_lb,axis=0)
@@ -255,6 +251,16 @@ class PerspectiveFitter():
             RMSE += RMSE_f
             
         return obj, RMSE
+    
+    
+    def construct_initialization(self, alphas, taus, us):
+        alpha = torch.stack(alphas).mean(dim=0)
+        poses = []
+        for i in range(len(taus)):
+            poses.append(torch.cat([taus[i], us[i]]))
+        
+        return torch.cat([alpha, torch.cat(poses)])
+            
 
     
 
@@ -264,14 +270,15 @@ class PerspectiveFitter():
         R, _ = utils.get_rot_matrix_torch(u, self.mm.device)
         R = R.float()
                 
+        alpha = alpha.unsqueeze(0)
+
         if self.which_basis == 'identity':
-            alpha = alpha.unsqueeze(0).to('cuda')
-            exp = None
+            p = self.mm.compute_face_shape(alpha, None).squeeze().T
         elif self.which_basis == 'expression':
-            exp = alpha.unsqueeze(0).to('cuda')
-            alpha = torch.zeros((1, self.mm.Kid)).to(self.mm.device)
-    
-        p = self.mm.compute_face_shape(alpha, exp).squeeze().T
+            # exp = alpha.unsqueeze(0)
+            alpha_ = torch.zeros((1, self.mm.Kid)).to(self.mm.device)    
+            p = self.mm.compute_face_shape(alpha_, alpha).squeeze().T
+        
         
         p = p[:,self.pts_indices]
 
@@ -376,7 +383,7 @@ class PerspectiveFitter():
                 if obj_tmp < obj + ALPHA * t * (dg.T @ search_dir):
                     break
                 
-                if t < 1e-6:
+                if t < 1e-4:
                     terminate = True
                     break
                 
@@ -384,7 +391,7 @@ class PerspectiveFitter():
                 it += 1
             
             objs[i] = obj
-            print(t)
+            # print(t)
             
             if torch.linalg.norm(search_dir) < 1e-7:
                 break

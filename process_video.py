@@ -150,6 +150,7 @@ def process_video(vpath, lmkspath, cam):
             angles.append(angles[-1])
             taus.append(taus[-1])
             exps.append(exps[-1])
+            invMs.append(invMs[-1])
             continue
         
         cim = frame.astype(np.float32)/255.0
@@ -250,8 +251,8 @@ def process_video(vpath, lmkspath, cam):
         exps.append(params['exp'].detach().cpu())
         invMs.append(invM)
         
-        if frame_idx == 600:
-            break
+        # if frame_idx == 1800:
+            # break
         
         
     all_params = {'alphas': alphas,
@@ -270,186 +271,220 @@ def process_video(vpath, lmkspath, cam):
 
 
 all_params = process_video(vpath, lmkspath, cam_3DID)
-
-
-
-#%%
-import models.morphable_model
-
-mm = models.morphable_model.MorphableModel(key=which_bfm, device=device, inv_y=False)
-# mm.mean_shape[1::3] *= -1
-
-# cam_tree = models.camera.Camera(f_x=f_x_treecam, f_y=f_y_treecam, cx=cx_treecam, cy=1920-cy_treecam)
+mm = models.morphable_model.MorphableModel(key=which_bfm, device=device)
+cam_tree = models.camera.Camera(f_x=f_x_treecam, f_y=f_y_treecam, cx=cx_treecam, cy=cy_treecam)
 
 T = len(all_params['alphas'])
-exp_mean = torch.cat(all_params['exps']).mean(dim=0).to(mm.device).unsqueeze(0)
-alpha_mean = torch.cat(all_params['alphas']).mean(dim=0).to(mm.device).unsqueeze(0)
-
-p_mean = mm.compute_face_shape(alpha_mean).squeeze().flatten()-mm.mean_shape.squeeze()
-alpha_neutral = torch.linalg.lstsq(mm.I, p_mean)[0].float()
-p_neutral = mm.compute_face_shape(alpha_neutral.unsqueeze(0).to(mm.device))
 
 
-mm_alpha = copy.deepcopy(mm)
-mm_alpha.mean_shape = p_neutral.flatten().unsqueeze(-1)
 
 
-import models.perspective_fitter
 
 #%%
-import models.perspective_fitter
-of = models.orthograhic_fitter.OrthographicFitter(mm)
-
-pfs_f = models.perspective_fitter.PerspectiveFitter(mm, cam_tree, use_maha=False, which_pts='lmks', F=1)
-pfd_f = models.perspective_fitter.PerspectiveFitter(mm, cam_tree, use_maha=False, which_pts='all', F=1)
-
 from scipy.spatial import distance
-
-
-for t in range(0, T, 60):
-    alpha = all_params['alphas'][t].to(mm.device)
-    exp = all_params['exps'][t].to(mm.device)
-    tau = all_params['taus'][t].to(mm.device)
-    angles = all_params['angles'][t].to(mm.device)
-    invM = all_params['invMs'][t]
-    pts = mm.project_to_2d(cam_tree, angles, tau, alpha, exp).detach().cpu().squeeze().numpy()
-    pts[:,1] = rasterize_size-pts[:,1]
-    # print(pts.shape)
-    pts = np.concatenate((pts, np.ones((pts.shape[0], 1))), axis=1)
-    # pts = (invM @ pts.T).T
-    # pts[:,1] = 1920-pts[:,1]
-    pts[:,1] = 224-pts[:,1]
-    """
-    if t % 3 == 0:
-        plt.figure(figsize=(14.4*5,  19.2*5))
-        plt.plot(pts[:,0], -pts[:,1], '.')
-        plt.xlim((0, 1440))
-        plt.ylim((-1920, 0))
-        plt.show()
-    continue
-    """
-    lmks = torch.from_numpy(pts).to(mm.device)[mm.li,:]
-    # lmks[:,1] = 1920-lmks[:,1]
-    of_fit_params = of.fit_orthographic_GN(lmks.cpu().numpy(), plotit=True)[0]
-    u = torch.tensor(of_fit_params['u'])
-    tau = of.to_projective(of_fit_params, cam_3DID.get_matrix(), lmks.cpu().float())
-
-    x0 = torch.cat([0*torch.rand(pfs_f.num_components), torch.tensor(tau), torch.tensor(u)]).to(mm.device)
-    # x0 = pfd_f.fit_GN(x0.float(), [torch.from_numpy(pts).to(mm.device).float()], plotit=True, use_ineq = False)[0]
-    # x0 = pfd_f.fit_GN(x0.float(), [pts], plotit=True, use_ineq = True)[0]
-    # x0 = pfd_f.fit_GN(x0.float(), [pts], plotit=True, use_ineq = False)[0]
-    # break
-    # x0 = pfd_f.fit_GN(x0.float(), [pts], plotit=True, use_ineq = True)[0]
-    x0 = pfd_f.fit_GN(x0.float(), [torch.from_numpy(pts).to(mm.device).float()], plotit=True, plotlast=True, use_ineq = True)[0]
-    break
-#%%
-    VI = np.diag((pfd_f.mm.sigma_alphas.cpu().numpy())**(-2))
-    alpha = x0[:mm.Kid].cpu().numpy()
-    d_maha = distance.mahalanobis(alpha, 0*alpha, VI)
-    plt.plot(alpha)
-    plt.plot(pfd_f.alpha_ub.cpu())
-    plt.plot(pfd_f.alpha_lb.cpu())
-    # plt.xlim((100,200))
-    plt.ylim((-2000, 2000))
-    print(d_maha)
-    # break
-    #%%
-    u = torch.tensor(of_fit_params['u'])
-    tau = of.to_projective(of_fit_params, cam2.get_matrix(), lmks)
-    x0 = torch.cat([0*torch.rand(pfd.num_components), torch.tensor(tau), u]).to(mm_alpha.device)
-    
-    x0 = torch.cat([0*torch.rand(mm.Kid), torch.tensor([0,0,500]), torch.tensor([0.1, 0.2, 0.3])]).to(mm_alpha.device)
-    break
-
-
-#%%
-pfs = PerspectiveFitter(mm, cam, use_maha=True, which_pts='lmks', F=F, maha2_threshold=300)
-pfd = PerspectiveFitter(mm, cam, use_maha=True, which_pts=which_pts, F=F, maha2_threshold=300)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#%%
-coef = 1.25
-cx2 = 102
-# coef = 1.0
-# cx2 = 112
-cy2 = 118
-
 import models.perspective_fitter
-cam1 = models.camera.Camera(fov, fov, cx, cx)
-cam2 = models.camera.Camera(fov*coef, fov*coef, cx2, cy2)
+import random
+random.seed(1907)
 
-of = models.orthograhic_fitter.OrthographicFitter(mm_alpha)
-
-pfs = models.perspective_fitter.PerspectiveFitter(mm_alpha, cam2, use_maha=False, which_pts='lmks', F=1, which_basis='expression')
-pfd = models.perspective_fitter.PerspectiveFitter(mm_alpha, cam2, use_maha=False, which_pts='all', F=1, which_basis='expression')
-
-
-from time import time
-exps = []
-poses = []
-exp_prev = None
-u_prev = None
-tau_prev = None
-# for t in range(T):
-for t in [210]:
-    print('\rProcessing frame %d/%d' % (t, T), end="")
-
-    angles = all_params['angles'][t].to(mm.device)
-    tau = all_params['taus'][t].to(mm.device)
-    alpha = all_params['alphas'][t].to(mm.device)
-    exp = all_params['exps'][t].to(mm.device)
-    pts = mm.project_to_2d(cam1, angles, tau, alpha, exp).cpu().squeeze().to(mm_alpha.device)
-    lmks = pts[mm_alpha.li,:].cpu().numpy()
+def compute_neutral_face(all_params, random_seed=0, F0=7, use_exp=False):
+    of = models.orthograhic_fitter.OrthographicFitter(mm)
     
-    if len(exps) == 0:
-        of_fit_params = of.fit_orthographic_GN(lmks, plotit=False)[0]
+    pfs_f = models.perspective_fitter.PerspectiveFitter(mm, cam_tree, use_maha=True, which_pts='lmks', F=1)
+    pfd_f = models.perspective_fitter.PerspectiveFitter(mm, cam_tree, use_maha=True, which_pts='sampled', F=1)
+    
+    
+    T = len(all_params['taus'])
+    alphas = []
+    taus = []
+    us = []
+    
+    all_pts = []
+    
+    for t in range(0, T, 120):
+        print(f'\rt={t}/T', end='')
+        alpha = all_params['alphas'][t].to(mm.device)
+        exp = all_params['exps'][t].to(mm.device)
+        tau = all_params['taus'][t].to(mm.device)
+        angles = all_params['angles'][t].to(mm.device)
+        invM = all_params['invMs'][t]
+        if use_exp:
+            pts = mm.project_to_2d(cam_3DID, angles, tau, alpha, exp).detach().cpu().squeeze().numpy()
+        else:
+            pts = mm.project_to_2d(cam_3DID, angles, tau, alpha, exp*0).detach().cpu().squeeze().numpy()
+            
+        pts[:,1] = rasterize_size-pts[:,1]
+        # print(pts.shape)
+        pts = np.concatenate((pts, np.ones((pts.shape[0], 1))), axis=1)
+        pts = (invM @ pts.T).T
+        # pts[:,1] = 1920-pts[:,1]
+        # pts[:,1] = 224-pts[:,1]
+        """
+        if t % 3 == 0:
+            plt.figure(figsize=(14.4*5,  19.2*5))
+            plt.plot(pts[:,0], -pts[:,1], '.')
+            plt.xlim((0, 1440))
+            plt.ylim((-1920, 0))
+            plt.show()
+        continue
+        """
+        lmks = torch.from_numpy(pts).to(mm.device)[mm.li,:]
+        # lmks[:,1] = 1920-lmks[:,1]
+        of_fit_params = of.fit_orthographic_GN(lmks.cpu().numpy(), plotit=False)[0]
         u = torch.tensor(of_fit_params['u'])
-        tau = of.to_projective(of_fit_params, cam2.get_matrix(), lmks)
-        x0 = torch.cat([0*torch.rand(pfd.num_components), torch.tensor(tau), u]).to(mm_alpha.device)
-    # else:
-        # x0 = torch.cat([torch.from_tensor(exps[-1]).to(mm_alpha.device), torch.tensor(tau), u])
+        tau = of.to_projective(of_fit_params, cam_tree.get_matrix(), lmks.cpu().float())
+    
+        x0 = torch.cat([0*torch.rand(pfs_f.num_components), torch.tensor(tau), torch.tensor(u)]).to(mm.device)
+        # x0 = pfd_f.fit_GN(x0.float(), [torch.from_numpy(pts).to(mm.device).float()], plotit=True, use_ineq = False)[0]
+        # x0 = pfd_f.fit_GN(x0.float(), [pts], plotit=True, use_ineq = True)[0]
+        # x0 = pfd_f.fit_GN(x0.float(), [pts], plotit=True, use_ineq = False)[0]
+        # break
+        # x0 = pfd_f.fit_GN(x0.float(), [pts], plotit=True, use_ineq = True)[0]
+        x0 = pfd_f.fit_GN(x0.float(), [torch.from_numpy(pts).to(mm.device).float()], plotit=False, plotlast=False, use_ineq = True)[0]
+    
+        alphas.append(x0[:pfs_f.num_components])
+        taus.append(x0[pfs_f.num_components:pfs_f.num_components+3])
+        us.append(x0[pfs_f.num_components+3:pfs_f.num_components+6])
         
-    # x0 = pfs.fit_GN(x0.float(), [pts.cpu().numpy()], plotit=True, use_ineq = False)[0]
-    # x0 = pfd.fit_GN(x0.float(), [pts.cpu().numpy()], plotit=True, use_ineq = False)[0]
-    # t1 = time()
+        all_pts.append(torch.from_numpy(pts).to(mm.device).float())
     
-    plotlast = t % 30 == 0
-    x0 = pfd.fit_GN(x0.float(), [pts], plotit=False, use_ineq = True, plotlast=plotlast)[0]
-    # print(time()-t1)
-    exps.append(x0[:pfs.num_components].cpu().numpy())
-    tau = x0[pfs.num_components:pfs.num_components+3].cpu().numpy()
-    angles = x0[pfs.num_components+3:pfs.num_components+6].cpu().numpy()
-    # print(t)
+    idx = np.arange(len(taus)).astype(int)[:F0]
+    alphas = [alphas[x] for x in idx]
+    taus = [taus[x] for x in idx]
+    us = [us[x] for x in idx]
+    # taus = taus[idx]
+    # us = us[idx]
+    # F0 = len(taus)
+    # F = len(taus[:F0])
+    pfd = models.perspective_fitter.PerspectiveFitter(mm, cam_tree, use_maha=True, which_pts='sampled', F=F0)
     
+    x0 = pfd.construct_initialization(alphas[:F0], taus[:F0], us[:F0])
+    x = pfd.fit_GN(x0.float(), all_pts, plotit=False, plotlast=False, use_ineq = True)[0]
     
-    pose = np.concatenate((tau, angles), axis=0)
-    
-    poses.append(pose)
-    # break
-    if t == 240:
-        break
+    return x[:pfd.num_components]
 
 
-
+alpha1 = compute_neutral_face(all_params, use_exp=True)
+alpha2 = compute_neutral_face(all_params, use_exp=False)
 
 
 #%%
+p1 = mm.compute_face_shape(alpha1.unsqueeze(0)).cpu().squeeze()
+p2 = mm.compute_face_shape(alpha2.unsqueeze(0)).cpu().squeeze()
 
+#%%
+
+plt.figure(figsize=(40,70))
+plt.subplot(321)
+plt.plot(p1[:,0], p1[:,1], '.')
+
+plt.subplot(322)
+plt.plot(p1[:,2], p1[:,1], '.')
+
+
+plt.subplot(323)
+plt.plot(p2[:,0], p2[:,1], '.')
+
+plt.subplot(324)
+plt.plot(p2[:,2], p2[:,1], '.')
+
+
+ix = mm.li.cpu()
+ms = 18
+plt.subplot(325)
+plt.plot(p1[ix,0], p1[ix,1], '.', markersize=ms)
+plt.plot(p2[ix,0], p2[ix,1], '.', markersize=ms)
+
+plt.subplot(326)
+plt.plot(p1[ix,2], p1[ix,1], '.', markersize=ms)
+plt.plot(p2[ix,2], p2[ix,1], '.', markersize=ms)
+#%%
+from time import time
+
+plt.figure(figsize=(80,40))
+
+plt.subplot(121)
+plt.plot(p1[:,0], p1[:,1], '.', markersize=ms)
+plt.plot(p2[:,0], p2[:,1], '.', markersize=ms)
+
+plt.subplot(122)
+plt.plot(p1[:,2], p1[:,1], '.', markersize=ms)
+plt.plot(p2[:,2], p2[:,1], '.', markersize=ms)
+
+
+def compute_expression_coeffs(alpha, Tmax=260):
+    mm_alpha = models.morphable_model.MorphableModel(key=which_bfm, device=device)
+    mm_alpha.update_mean_face(alpha)
+    
+    of = models.orthograhic_fitter.OrthographicFitter(mm_alpha)
+    
+    pfs = models.perspective_fitter.PerspectiveFitter(mm_alpha, cam_tree, use_maha=False, which_pts='lmks', F=1, which_basis='expression')
+    pfd = models.perspective_fitter.PerspectiveFitter(mm_alpha, cam_tree, use_maha=False, which_pts='sampled', F=1, which_basis='expression')
+    
+    
+    us = []
+    taus = []
+    exps = []
+    poses = []
+    exp_prev = None
+    u_prev = None
+    tau_prev = None
+    
+    for t in range(Tmax):
+        print('\rProcessing frame %d/%d' % (t, T), end="")
+    
+        angles = all_params['angles'][t].to(mm.device)
+        tau = all_params['taus'][t].to(mm.device)
+        alpha = all_params['alphas'][t].to(mm.device)
+        exp = all_params['exps'][t].to(mm.device)
+        pts = mm.project_to_2d(cam_3DID, angles, tau, alpha, exp).cpu().squeeze().to(mm_alpha.device)
+        pts[:,1] = rasterize_size-pts[:,1]
+        pts = pts.cpu().numpy()
+        pts = np.concatenate((pts, torch.ones((pts.shape[0], 1))), axis=1)
+        invM = all_params['invMs'][t]
+        
+        pts = (invM @ pts.T).T
+    
+        lmks = pts[mm_alpha.li.cpu(),:]# .cpu().numpy()
+        
+        if len(exps) == 0:
+            of_fit_params = of.fit_orthographic_GN(lmks, plotit=False)[0]
+            u = torch.tensor(of_fit_params['u'])
+            tau = of.to_projective(of_fit_params, cam_tree.get_matrix(), lmks)
+            x0 = torch.cat([0*torch.rand(pfd.num_components), torch.tensor(tau), u]).to(mm_alpha.device)
+        # else:
+            # x0 = torch.cat([torch.from_tensor(exps[-1]).to(mm_alpha.device), torch.tensor(tau), u])
+            
+        # x0 = pfs.fit_GN(x0.float(), [pts.cpu().numpy()], plotit=True, use_ineq = False)[0]
+        # x0 = pfd.fit_GN(x0.float(), [pts.cpu().numpy()], plotit=True, use_ineq = False)[0]
+        # t1 = time()
+        
+        # plotlast = t % 30 == 0
+        x0 = pfd.fit_GN(x0.float(), [torch.from_numpy(pts).to(pfd.mm.device).float()], plotit=False, 
+                        use_ineq = True, plotlast=False)[0]
+        # print(time()-t1)
+        exps.append(x0[:pfs.num_components].cpu().numpy())
+        tau = x0[pfs.num_components:pfs.num_components+3].cpu().numpy()
+        u = x0[pfs.num_components+3:pfs.num_components+6].cpu().numpy()
+        
+        taus.append(tau)
+        us.append(u)
+        
+        pose = np.concatenate((tau, u), axis=0)
+        
+        poses.append(pose)
+        # break
+        if t == 600:
+            break
+
+    return exps, poses
+#%%
+
+
+exps, poses = compute_expression_coeffs(alpha1)
+#%%
 T = len(exps)
 
+orig_vidpath = '/offline_data/face/CAR/InfantSync/id-IS002/sess-001/id-IS002_m-tc_cond-is_adm-001_n-20200203110206_2.mp4'
 
 tex = np.loadtxt('/home/sariyanide/code/3DI/build/models/MMs/BFMmm-23660/tex_mu.dat').reshape(-1,1)
 bn = os.path.basename(vpath).replace('.mp4', '')
@@ -469,17 +504,36 @@ texturefs_path = f'{ddir}/{bn}_texture_sm.avi'
 
 exps = np.array(exps)
 
-poses = np.array(poses)
-p0= mm.compute_face_shape(alpha_neutral.unsqueeze(0))
+
+
+poses_np = np.array(poses)
+
+
+# taus[1] *= -1
+# us[0] *= -1
+# us[-1] *= -1
+
+
+# poses = np.zeros(poses.shape)
+# poses_np[:,3] = 0.
+# poses_np[:,4] = 0.11
+poses_np[:,2] -= 300
+# poses_np[:,3] *= -1
+# poses_np[:,3] -= np.pi
+poses_np[:,-1] *= -1
+# poses[:,3] *= -1
+# poses[:,4] *= -1
+# poses[:,-1] *= -1
+p0= mm.compute_face_shape(alpha2.unsqueeze(0))
 p0 = p0.detach().squeeze()
 p0[:,1] *= -1
-p0[:,2] += 20
+# p0[:,2] += 20
 # p0[:,2] = max(p0[:,2])-p0[:,2]
 
 np.savetxt(shpsm_fpath, p0.cpu().numpy())
 np.savetxt(tex_fpath,tex)
 np.savetxt(exps_fpath, exps)
-np.savetxt(poses_fpath, poses)
+np.savetxt(poses_fpath, poses_np)
 np.savetxt(illums_fpath, illums)
 
 
@@ -488,7 +542,7 @@ np.savetxt(illums_fpath, illums)
 
 # os.chdir('/home/sariyanide/car-vision/cuda/build-3DI')
 
-cmd_vis = './visualize_3Doutput %s %s %s %s %s %s %s %s %s %s' % (vpath, cfg_fpath, str(fov), shpsm_fpath, tex_fpath,
+cmd_vis = './visualize_3Doutput %s %s %s %s %s %s %s %s %s %s' % (orig_vidpath, cfg_fpath, 'models/cameras/TreeCam_1041a.txt', shpsm_fpath, tex_fpath,
                                                                    exps_fpath, poses_fpath, illums_fpath, 
                                                                    render3ds_path, texturefs_path)
 
