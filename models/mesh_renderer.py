@@ -11,19 +11,17 @@ Created on Mon Nov  6 18:08:55 2023
 """
 
 import torch
-import torch.nn.functional as F
 import numpy as np
 from typing import List
 import nvdiffrast.torch as dr
-from scipy.io import loadmat
 from torch import nn
+
 
 def ndc_projection(x=0.1, n=1.0, f=50.0):
     return np.array([[n/x,    0,            0,              0],
                      [  0, n/-x,            0,              0],
                      [  0,    0, -(f+n)/(f-n), -(2*f*n)/(f-n)],
                      [  0,    0,           -1,              0]]).astype(np.float32)
-
 
 
 class MeshRenderer(nn.Module):

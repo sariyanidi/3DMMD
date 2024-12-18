@@ -6,9 +6,7 @@ Created on Mon Nov  6 08:37:41 2023
 @author: v
 """
 
-from time import time
 import copy
-# from mesh_renderer import MeshRenderer
 import torch.nn.functional as F
 
 import os
@@ -23,7 +21,6 @@ class SH:
 
 
 class MorphableModel():
-    
     
     def __init__(self, key='BFMmm-19830', data_rootdir='./data', device='cuda',
                  im_w=512.0, im_h=512.0, inv_y=True):
@@ -158,45 +155,33 @@ class MorphableModel():
         return R.permute(0, 2, 1)
     
     
-    def compute_rotation_matrix_from_eulerrod(self, u):
-        """
-        """
+    def mrp_to_eulerv0(self, u):
         
-        B = u.shape[0]
-        # torch.norm( )
-        theta = torch.linalg.norm(u, dim=1).reshape(-1,1,1).float()
-        unorm = F.normalize(u)
-        unorm_skew = torch.zeros(B,3,3).to(self.device)
-        unorm_skew[:,0,1] = -unorm[:,2] 
-        unorm_skew[:,0,2] = unorm[:,1] 
-        unorm_skew[:,1,2] = -unorm[:,0] 
-        unorm_skew[:,1,0] = unorm[:,2] 
-        unorm_skew[:,2,0] = -unorm[:,1] 
-        unorm_skew[:,2,1] = unorm[:,0] 
+        from scipy.spatial.transform import Rotation
+        angles = Rotation.from_mrp(u).as_euler('zxy', degrees=True)
+        return angles
         
-        I = torch.zeros(B,3,3).to(self.device)
-        I[:,0,0] = 1.0
-        I[:,1,1] = 1.0
-        I[:,2,2] = 1.0
-        
-        torch.sin(theta) * unorm_skew
-        R = I + torch.sin(theta) * unorm_skew + (1 - torch.cos(theta)) * unorm_skew @ unorm_skew
-        
-        return R.permute(0, 2, 1)
-
-
-        # unorm_skew = skew(unorm)
     
+    
+    
+    def mrp_to_euler(self, angles):
         """
-        I = np.eye(3)
-        R = I + np.sin(theta) * unorm_skew + (1 - np.cos(theta)) * np.dot(unorm_skew, unorm_skew)
-
+        Compute rotation matrix from Euler angles
+        
+        @param angles   Tensor of shape [B, 3], which contains euler angles in radians
+        
+        @return R       Tensor of size [B, 3, 3], which contains rotation matrices corresponding
+                        to each angle. Output is transposed (see comment at return) 
+        """
+        from scipy.spatial.transform import Rotation
+        
+        B = angles.shape[0]
         x = angles[:,0].reshape(B,1,1)
         y = angles[:,1].reshape(B,1,1)
         z = angles[:,2].reshape(B,1,1)
         
-        ones = torch.ones(B,1,1).to(self.device)
-        zeros = torch.zeros(B,1,1).to(self.device)
+        ones = torch.ones(B,1,1).to(angles.device)
+        zeros = torch.zeros(B,1,1).to(angles.device)
         
         cosx = torch.cos(x)
         sinx = torch.sin(x)
@@ -225,10 +210,34 @@ class MorphableModel():
         
         R = Rz @ Ry @ Rx
         
-        # We return transposed because we'll right-multiply with a mesh of size [N, 3]
-        #   (instead of left-multiplying with mesh of [3, N])
+        nangles = Rotation.from_matrix(R[0,:,:]).as_euler('zxy', degrees=True)
+        return nangles
+        
+    
+    def compute_rotation_matrix_from_eulerrod(self, u):
+        
+        B = u.shape[0]
+        # torch.norm( )
+        theta = torch.linalg.norm(u, dim=1).reshape(-1,1,1).float()
+        unorm = F.normalize(u)
+        unorm_skew = torch.zeros(B,3,3).to(self.device)
+        unorm_skew[:,0,1] = -unorm[:,2] 
+        unorm_skew[:,0,2] = unorm[:,1] 
+        unorm_skew[:,1,2] = -unorm[:,0] 
+        unorm_skew[:,1,0] = unorm[:,2] 
+        unorm_skew[:,2,0] = -unorm[:,1] 
+        unorm_skew[:,2,1] = unorm[:,0] 
+        
+        I = torch.zeros(B,3,3).to(self.device)
+        I[:,0,0] = 1.0
+        I[:,1,1] = 1.0
+        I[:,2,2] = 1.0
+        
+        torch.sin(theta) * unorm_skew
+        R = I + torch.sin(theta) * unorm_skew + (1 - torch.cos(theta)) * unorm_skew @ unorm_skew
+        
         return R.permute(0, 2, 1)
-        """
+    
 
     
     def view_transform(self, mesh, R, tau):

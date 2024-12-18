@@ -32,24 +32,24 @@ width  = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
 height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
 
 camera = camera.Camera(args.fov, args.fov, float(width)/2.0, float(height)/2.0)
-
+odir = '/offline_data/face/CAR/SocialCoordination/3DID_output'
 vf = video_fitter.VideoFitter(camera, outdir_root='/offline_data/face/CAR/SocialCoordination/3DID_output',Tmax=None)
 
-ids = glob(f'{sdir}/*mp4')
+ids = glob(f'{sdir}/*.mp4')
 ids.sort()
 ids = ids[args.GPUid::3]
 
 for id in ids:
     bn = os.path.basename(id).split('.')[0]
     
-    vids = glob(f'{sdir}/../preprocessing/{bn}*mp4')
+    vids = glob(f'{sdir}/../3DI_output/preprocessing/{bn}*mp4')
     
     if len(vids) == 0:
         vid_path = id
     else:
         vid_path = vids[0]        
         
-    tmp = glob(f'{sdir}/../preprocessing/{bn}*landmarks*')
+    tmp = glob(f'{sdir}/../3DI_output/preprocessing/{bn}*landmarks*')
     if len(tmp) == 0:
         continue
     
@@ -64,7 +64,15 @@ for id in ids:
     # # orig_vid_path = glob(f'/offline_data/face/CAR/InfantSync/id*/sess*/{pbn}*.mp4')[0]
     # orig_vid_path = glob(f'/offline_data/face/CAR/InfantSync/id*/sess*/{pbn}*.mp4')[0]
     
-    vf.process_w3DID(vid_path, lmks_path)
+    
+    expressions_path = f'{odir}/{bn}.expressions'
+    alphas_path = f'{odir}/{bn}.alphas'
+    betas_path = f'{odir}/{bn}.betas'
+    illums_path = f'{odir}/{bn}.illums'
+    poses_path = f'{odir}/{bn}.poses'
+    
+    params3DIlite = vf.process_w3DID(vid_path, lmks_path)
+    vf.save_txt_files(params3DIlite, alphas_path, betas_path, expressions_path, poses_path, illums_path)
     try:
         vf.process_w3DID(vid_path, lmks_path)
     except:

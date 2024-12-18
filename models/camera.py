@@ -21,13 +21,21 @@ class Camera():
             self.fov_y = fov_y
         
             self.f_x = self.cx/(np.tan(np.deg2rad(fov_x)/2.0))
-            self.f_y = self.cy/(np.tan(np.deg2rad(fov_y)/2.0))
+            self.f_y = self.f_x #self.cy/(np.tan(np.deg2rad(fov_y)/2.0))
         else:
             self.f_x = f_x
             self.f_y = f_y
+            
+            self.fov_x = 2*np.rad2deg(np.arctan((1./self.f_x)*cx))
+            self.fov_y = 2*np.rad2deg(np.arctan((1./self.f_y)*cy))
+            
+            
         
     def get_matrix(self):
-        return np.array([self.f_x, 0, self.cx, 0, self.f_y, self.cy, 0, 0, 1]).reshape(3,3)
+        return np.array([self.f_x, 0, self.cx, 
+                         0, self.f_y, self.cy, 
+                         0, 0, 1]).reshape(3,3)
+    
     
     def map_to_2d(self, mesh):
         x = self.f_x*mesh[:,:,0:1]/mesh[:,:,2:]+self.cx

@@ -39,7 +39,7 @@ checkpoint_dir = 'checkpoints_norm'
 
 which_bfm = 'BFMmm-23660'
 
-cfgid =2
+cfgid = 2
 Ntot = 81827
 learning_rate = 1e-5
 backbone = 'resnet50'
@@ -63,7 +63,6 @@ model_id.to(device)
 model_id.eval()
 
 mm = models.morphable_model.MorphableModel(key=which_bfm, device=device)
-
 
 
 #%%
@@ -94,10 +93,7 @@ model.eval()
 """
 
 
-
 #%%
-
-
 
 def crop_frame(frame, lmks):
 

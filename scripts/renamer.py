@@ -10,16 +10,17 @@ import os
 import sys
 from glob import glob
 
-cfgid = 2
-fov = 15
+cfgid = 3
+fov = 12
 which_bfm = 'BFMmm-23660'
 sdir = f'/online_data/face/combined_celeb_ytfaces-labels/3DI-{cfgid}-{fov}-{which_bfm}'
-dbname = 'celeb' # 'celeb'
+dbname = 'ytfaces' 
+# dbname = 'celeb' 
 
 if dbname == 'ytfaces':
-    files = glob(f'{sdir}/id*vars')
+    files = glob(f'{sdir}/*/{fov}/id*vars')
 elif dbname == 'celeb':
-    files = glob(f'{sdir}/[0-9]*vars')
+    files = glob(f'{sdir}/*/{fov}/[0-9]*vars')
     
 
 ddir = '/online_data/face/combined_celeb_ytfaces'
@@ -27,7 +28,7 @@ ddir = '/online_data/face/combined_celeb_ytfaces'
 
 for fi, f in enumerate(files):
     if dbname == 'ytfaces':
-        bn = os.path.basename(f).split('.')[0].split('_co b')[0]
+        bn = os.path.basename(f).split('.')[0].split('_comb')[0]
     elif dbname == 'celeb':
         bn = os.path.basename(f).split('.')[0].split('_')[0]
     
@@ -43,7 +44,7 @@ for fi, f in enumerate(files):
     # print(bn)
     
     cmd = f'cp {f} {tf}'
-    print(cmd)
+    #print(cmd)
     os.system(cmd)
     # break
 

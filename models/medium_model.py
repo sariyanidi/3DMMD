@@ -22,7 +22,6 @@ from arcface_torch.backbones import get_model
 from models import resnets, morphable_model, mesh_renderer
 
 
-
 def filter_state_dict(state_dict, remove_name='fc'):
     new_state_dict = {}
     for key in state_dict:

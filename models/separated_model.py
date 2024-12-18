@@ -15,7 +15,7 @@ from torch.nn import functional as F
 from torchvision.transforms import GaussianBlur
 from kornia.morphology import erosion
 
-from .medium_model import MediumModel
+from medium_model import MediumModel
 
 import sys
 sys.path.append('../insightface/recognition/')

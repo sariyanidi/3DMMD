@@ -28,7 +28,7 @@ import matplotlib.pyplot as plt
 class PerspectiveFitter():
     
     def __init__(self, mm, cam, F=7, use_ineq=False, use_maha=True, which_pts='all', 
-                 maha2_threshold=256.0,
+                 maha2_threshold=360.0,
                  which_basis='identity'):
         self.mm = mm
         self.F = F
@@ -313,7 +313,11 @@ class PerspectiveFitter():
             if self.use_maha:
                 obj += -torch.log(-f_maha)
     
-        RMSE = torch.sqrt(obj) / len(diffx)
+    
+        diffx = (xproj - lmks[self.pts_indices,0:1])
+        diffy = (yproj - lmks[self.pts_indices,1:2])
+        
+        RMSE = torch.sqrt( torch.sum(diffx**2) + torch.sum(diffy**2))/len(diffx)
     
         return obj, RMSE
 
@@ -426,13 +430,18 @@ class PerspectiveFitter():
                 plt.subplot(234)
                 plt.plot(p0[:,0].cpu(), p0[:,1].cpu(), 'x')
 
+                plt.subplot(235)
+                plt.plot(p0[:,2].cpu(), p0[:,1].cpu(), 'x')
+
                 plt.show()
                 # plt.plot(x[:self.num_components])
                 # plt.show()
     
 
-
+        
         objs = objs[:i]
+        _, RMSE = self.evaluate_function(x, all_lmks)
+        RMSE /= self.F
         # plt.figure()
         # plt.plot(objs)
         
@@ -445,6 +454,7 @@ class PerspectiveFitter():
             'num_iters': i,
             'xproj': xprojs,
             'yproj': yprojs,
+            'RMSE': RMSE
         }
     
         return x, fit_params
