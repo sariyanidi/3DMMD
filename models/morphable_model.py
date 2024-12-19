@@ -31,7 +31,7 @@ class MorphableModel():
         if inv_y:
             Y0 = -Y0
         Z0 = torch.from_numpy(np.loadtxt(f'{self.data_dir}/Z0_mean.dat')).unsqueeze(1).T # [1, N]
-        self.li = torch.from_numpy(np.loadtxt(f'{self.data_dir}/lmks.dat')).type(torch.int64).to(self.device)
+        self.li = torch.from_numpy(np.loadtxt(f'{self.data_dir}/li.dat')).type(torch.int64).to(self.device)
 
         self.N = X0.shape[1]
 
