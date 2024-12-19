@@ -49,7 +49,7 @@ wget https://sariyanidi.com/dbox/3DIlite/resnet50-0676ba61.pth -P ./models/check
 ```
 
 ## 3) Test
-``
+```
 mkdir testoutput
 python process_video.py
-``
+```
