@@ -275,7 +275,7 @@ class MorphableModel():
         uixs = []
         lens = []
         for i in range(N):
-            ix = (self.tri == i).type(torch.int64) * torch.arange(1, self.tri.shape[0]+1).reshape(-1, 1)
+            ix = (self.tri == i).type(torch.int64) * torch.arange(1, self.tri.shape[0]+1).reshape(-1, 1).to(self.device)
             uix = torch.unique(ix)-1
             uix = uix[torch.where(uix>=0)]
             lens.append(len(uix))
