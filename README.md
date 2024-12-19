@@ -1,5 +1,16 @@
-torch
 
+
+# Download morphable models
+
+```
+data/raw/01_MorphableModel.mat
+data/raw/Exp_Pca.bin
+```
+
+
+```
+python3.8 -m venv env
+source env/bin/activate
 pip install --upgrade pip
 pip install torch==2.1.0
 
@@ -15,26 +26,14 @@ pip install torchvision==0.16.0
 pip install matplotlib
 pip install ninja
 
-
 git clone https://github.com/deepinsight/insightface.git
 cp -r ./insightface/recognition/arcface_torch ./models/
 
-
-
-
-
-#########
-
-
-python create_imagelists.py /online_data/face/yt_faces2/yt_cropped2 7 170 0
-python create_imagelists.py /online_data/face/yt_faces2/yt_cropped2 7 341 170
-
-
-./fit_to_multiframe /home/sariyanide/car-vision/cuda/3DI/scripts/imlists/faceyt_cropped2.list7_0-170.txt ./configs/BFMmm-19830.cfg1.global4.txt 30 /offline_data/face/yt_faces2/3DI
-./fit_to_multiframe /home/sariyanide/car-vision/cuda/3DI/scripts/imlists/faceyt_cropped2.list7_170-341.txt ./configs/BFMmm-19830.cfg1.global4.txt 30 /offline_data/face/yt_faces2/3DI
-
-
-
-python scripts/cropper.py
-python scripts/renamer.py
+mkdir checkpoints
+mkdir models/checkpoints
+wget https://sariyanidi.com/dbox/3DIlite/backbone.pth -P ./checkpoints/
+wget https://sariyanidi.com/dbox/3DIlite/medium_model15.00combined_celeb_ytfacesresnet50139979True1e-05-2-BFMmm-23660UNL_STORED.pth -P ./checkpoints/
+wget https://sariyanidi.com/dbox/3DIlite/sep_modelv3SP15.00combined_celeb_ytfacesresnet501e-052True139979_V2.pth -P ./checkpoints/
+wget https://sariyanidi.com/dbox/3DIlite/resnet50-0676ba61.pth -P ./models/checkpoints/
+```
 
