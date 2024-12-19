@@ -121,7 +121,7 @@ class MediumModel(nn.Module):
         self.backbone.load_state_dict(state_dict)
         
         self.net_recog = RecogNetWrapper(net_recog='r50', 
-                                         pretrained_path='./models/checkpoints/recog_model/backbone.pth')
+                                         pretrained_path='./checkpoints/backbone.pth')
         self.net_recog.to(self.device)
         self.net_recog.net.eval()
         
