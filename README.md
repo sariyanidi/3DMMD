@@ -1,12 +1,21 @@
 torch
 
+pip install --upgrade pip
+pip install torch==2.1.0
 
 git clone https://github.com/NVlabs/nvdiffrast
+cd nvdiffrast
+python setup.py install
+cd ..
 pip install kornia
+pip install opencv-python
+pip install scikit-image
+pip install pandas
+pip install torchvision==0.16.0
+pip install matplotlib
+pip install ninja
 
 
-
-cd .. 
 git clone https://github.com/deepinsight/insightface.git
 cp -r ./insightface/recognition/arcface_torch ./models/
 
