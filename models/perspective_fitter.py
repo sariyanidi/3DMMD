@@ -460,272 +460,272 @@ class PerspectiveFitter():
         return x, fit_params
     
 #%%
-import scipy.io
+# import scipy.io
 
-from scipy.spatial import distance
-import os
+# from scipy.spatial import distance
+# import os
 
 
 
-shp = scipy.io.loadmat('/home/sariyanide/car-vision/matlab/geometric_error/data/01_MorphableModel.mat')['shapeMU'].reshape(-1,3)
-N = shp.shape[0]
-# A copy 
-bdir = '/home/sariyanide/car-vision/python/geometric_error_analysis/'
-w = scipy.io.loadmat(f'{bdir}/idxs/BFM_exp_idx.mat')['trimIndex'].astype(int)
-w0 = (w-1).flatten()
+# shp = scipy.io.loadmat('data/raw/01_MorphableModel.mat')['shapeMU'].reshape(-1,3)
+# N = shp.shape[0]
+# # A copy 
+# bdir = 'data'
+# w = scipy.io.loadmat(f'{bdir}/idxs/BFM_exp_idx.mat')['trimIndex'].astype(int)
+# w0 = (w-1).flatten()
 
         
-# Deep3DFace
-ix = scipy.io.loadmat(f'{bdir}/idxs/Deep3DFace/BFM_front_idx.mat')['idx'].astype(int)
-ix0 = (ix-1).flatten()
-ix_d = w0[ix0]
+# # Deep3DFace
+# ix = scipy.io.loadmat(f'{bdir}/idxs/Deep3DFace/BFM_front_idx.mat')['idx'].astype(int)
+# ix0 = (ix-1).flatten()
+# ix_d = w0[ix0]
 
-# 3DDFA
-ix = np.loadtxt(f'{bdir}/idxs/3DDFA/indices.txt').astype(int)
-ix_3ddfa = w0[ix]
+# # 3DDFA
+# ix = np.loadtxt(f'{bdir}/idxs/3DDFA/indices.txt').astype(int)
+# ix_3ddfa = w0[ix]
 
-# 3DI
-ix = np.loadtxt(f'{bdir}/idxs/3DI/w.dat').astype(int)
-ix_3di = w0[((ix-1)[::3]/3).astype(int)]
+# # 3DI
+# ix = np.loadtxt(f'{bdir}/idxs/3DI/w.dat').astype(int)
+# ix_3di = w0[((ix-1)[::3]/3).astype(int)]
 
-# 3DI
-ix = np.loadtxt(f'{bdir}/idxs/3DI/w.dat').astype(int)
-ix_3di = w0[((ix-1)[::3]/3).astype(int)]
+# # 3DI
+# ix = np.loadtxt(f'{bdir}/idxs/3DI/w.dat').astype(int)
+# ix_3di = w0[((ix-1)[::3]/3).astype(int)]
 
-# The points that are common across methods
-common_idx = set(ix_d).intersection(set(ix_3ddfa)).intersection(set(ix_3di))
-common_idx = list(common_idx)
+# # The points that are common across methods
+# common_idx = set(ix_d).intersection(set(ix_3ddfa)).intersection(set(ix_3di))
+# common_idx = list(common_idx)
 
-which = '3'
-which_pts = 'sampled'
+# which = '3'
+# which_pts = 'sampled'
 
-if __name__ == '__main__':
-    mm = MorphableModel(key='BFMmm-23660', data_rootdir='../data')
-    of = OrthographicFitter(mm)
-    # sdir = '/offline_data/face/yt_faces2/3DI/OD0.6_OE0.3_OB0.7_RS78_IN0_SF0_CF0.42NF7_NTC7_UL0_CB1GLOBAL79_IS0K7440.75P1BFMmm-19830/10/'
-    # files = glob(f'{sdir}/*pts')
-    sdir = f'/home/sariyanide/code/3DMMD/tmp{which}'
+# if __name__ == '__main__':
+#     mm = MorphableModel(key='BFMmm-23660', data_rootdir='../data')
+#     of = OrthographicFitter(mm)
+#     # sdir = '/offline_data/face/yt_faces2/3DI/OD0.6_OE0.3_OB0.7_RS78_IN0_SF0_CF0.42NF7_NTC7_UL0_CB1GLOBAL79_IS0K7440.75P1BFMmm-19830/10/'
+#     # files = glob(f'{sdir}/*pts')
+#     sdir = f'/home/sariyanide/code/3DMMD/tmp{which}'
 
-    F = 9
-    avg_mahas = []
+#     F = 9
+#     avg_mahas = []
     
     
-    for fov in [12]:
-        cam = Camera(fov, fov, 112, 112)
+#     for fov in [12]:
+#         cam = Camera(fov, fov, 112, 112)
         
-        pfs_f = PerspectiveFitter(mm, cam, use_maha=False, which_pts='lmks', F=1)
-        pfd_f = PerspectiveFitter(mm, cam, use_maha=False, which_pts=which_pts, F=1)
+#         pfs_f = PerspectiveFitter(mm, cam, use_maha=False, which_pts='lmks', F=1)
+#         pfd_f = PerspectiveFitter(mm, cam, use_maha=False, which_pts=which_pts, F=1)
         
-        pfs = PerspectiveFitter(mm, cam, use_maha=True, which_pts='lmks', F=F, maha2_threshold=300)
-        pfd = PerspectiveFitter(mm, cam, use_maha=True, which_pts=which_pts, F=F, maha2_threshold=300)
-        # fov = 17
-        for subj_id in range(33):# range(100):
-        # for fov in [1, 2, 5, 10, 17, 20, 25, 30, 50]:
-        # for fov in [1, 2, 4, 7, 12]:
-        # for fov in [1, 5, 10, 17]:
-            tdir = f'/offline_data/face/meshes/synth_020/3DID-{which}fov{fov}-{which_pts}-M01-F{F:02d}'
-            os.makedirs(tdir, exist_ok=True)
-            files = glob(f'{sdir}/subj{subj_id:03d}*txt')
+#         pfs = PerspectiveFitter(mm, cam, use_maha=True, which_pts='lmks', F=F, maha2_threshold=300)
+#         pfd = PerspectiveFitter(mm, cam, use_maha=True, which_pts=which_pts, F=F, maha2_threshold=300)
+#         # fov = 17
+#         for subj_id in range(33):# range(100):
+#         # for fov in [1, 2, 5, 10, 17, 20, 25, 30, 50]:
+#         # for fov in [1, 2, 4, 7, 12]:
+#         # for fov in [1, 5, 10, 17]:
+#             tdir = f'/offline_data/face/meshes/synth_020/3DID-{which}fov{fov}-{which_pts}-M01-F{F:02d}'
+#             os.makedirs(tdir, exist_ok=True)
+#             files = glob(f'{sdir}/subj{subj_id:03d}*txt')
             
-            tpath = f'{tdir}/subj{subj_id:03d}.txt'
-            if os.path.exists(tpath):
-                continue
+#             tpath = f'{tdir}/subj{subj_id:03d}.txt'
+#             if os.path.exists(tpath):
+#                 continue
             
-            plotit = False
+#             plotit = False
             
-            alphas = []
-            taus_us = []
-            for fpath in files[:F]:
-                # print(os.path.basename(fpath))
-                # plt.clf()
+#             alphas = []
+#             taus_us = []
+#             for fpath in files[:F]:
+#                 # print(os.path.basename(fpath))
+#                 # plt.clf()
                 
                 
-                cpts = np.loadtxt(fpath)
-                all_pts = [cpts]
-                all_lmks = [all_pts[0][pfs.mm.li.cpu().numpy(),:]]
-                of_fit_params = of.fit_orthographic_GN(all_lmks[0], plotit=plotit)[0]
-                u = of_fit_params['u']
-                tau = of.to_projective(of_fit_params, cam.get_matrix(), all_lmks[0])
+#                 cpts = np.loadtxt(fpath)
+#                 all_pts = [cpts]
+#                 all_lmks = [all_pts[0][pfs.mm.li.cpu().numpy(),:]]
+#                 of_fit_params = of.fit_orthographic_GN(all_lmks[0], plotit=plotit)[0]
+#                 u = of_fit_params['u']
+#                 tau = of.to_projective(of_fit_params, cam.get_matrix(), all_lmks[0])
 
-                x0 = torch.cat([0*torch.rand(pfd.num_components), torch.tensor(tau), torch.tensor([0.1, 0.2, 0.3])])
-                # x0 = torch.cat([0*torch.rand(199), torch.tensor(tau), torch.tensor(u)])
-                # x0 = torch.cat([0*torch.rand(199), torch.tensor([0.1, 0.2, 599]), torch.tensor([0.1, 0.2, 0.3])])
+#                 x0 = torch.cat([0*torch.rand(pfd.num_components), torch.tensor(tau), torch.tensor([0.1, 0.2, 0.3])])
+#                 # x0 = torch.cat([0*torch.rand(199), torch.tensor(tau), torch.tensor(u)])
+#                 # x0 = torch.cat([0*torch.rand(199), torch.tensor([0.1, 0.2, 599]), torch.tensor([0.1, 0.2, 0.3])])
 
         
-                x0 = pfs_f.fit_GN(x0.float(), all_pts, plotit=plotit, use_ineq = False)[0]
-                # print(tau)
-                # print(x0[199:])
+#                 x0 = pfs_f.fit_GN(x0.float(), all_pts, plotit=plotit, use_ineq = False)[0]
+#                 # print(tau)
+#                 # print(x0[199:])
                 
-                x0[:pfs.mm.Kid] *= 0
-                x0 = pfs_f.fit_GN(x0.float(), all_pts, plotit=plotit, use_ineq = True)[0]
-                x = pfd_f.fit_GN(x0.float(), all_pts, plotit=plotit, use_ineq = True)[0]
+#                 x0[:pfs.mm.Kid] *= 0
+#                 x0 = pfs_f.fit_GN(x0.float(), all_pts, plotit=plotit, use_ineq = True)[0]
+#                 x = pfd_f.fit_GN(x0.float(), all_pts, plotit=plotit, use_ineq = True)[0]
                 
-                alpha = x[:pfd.mm.Kid]
-                tau = x[pfd.mm.Kid:pfd.mm.Kid+3]
-                u =  x[pfd.mm.Kid+3:pfd.mm.Kid+6]
+#                 alpha = x[:pfd.mm.Kid]
+#                 tau = x[pfd.mm.Kid:pfd.mm.Kid+3]
+#                 u =  x[pfd.mm.Kid+3:pfd.mm.Kid+6]
                 
-                alphas.append(alpha)
-                taus_us.append(torch.cat([tau, u]))
-                # break
-            # break
-            alpha =torch.stack(alphas).mean(axis=0)
+#                 alphas.append(alpha)
+#                 taus_us.append(torch.cat([tau, u]))
+#                 # break
+#             # break
+#             alpha =torch.stack(alphas).mean(axis=0)
            
-            all_pts = []
-            all_lmks = []
+#             all_pts = []
+#             all_lmks = []
             
-            mahas = []
+#             mahas = []
              
             
-            plotit2 = False
-            x0 = torch.cat([alpha] + taus_us)
-            # x_list = [0*torch.rand(199)]
-            for fpath in files:
-                # print(os.path.basename(fpath))
-                # plt.clf()
-                pts = np.loadtxt(fpath)
-                lmks = pts[pfs.mm.li.cpu().numpy(),:]
-                lmks = pts[pfs.mm.li.cpu().numpy(),:]
-                all_pts.append(pts)
-                all_lmks.append(lmks)
-                # lmks[:,1] = 224-lmks[:,1]
+#             plotit2 = False
+#             x0 = torch.cat([alpha] + taus_us)
+#             # x_list = [0*torch.rand(199)]
+#             for fpath in files:
+#                 # print(os.path.basename(fpath))
+#                 # plt.clf()
+#                 pts = np.loadtxt(fpath)
+#                 lmks = pts[pfs.mm.li.cpu().numpy(),:]
+#                 lmks = pts[pfs.mm.li.cpu().numpy(),:]
+#                 all_pts.append(pts)
+#                 all_lmks.append(lmks)
+#                 # lmks[:,1] = 224-lmks[:,1]
                 
-                # x_list.append(torch.tensor([0.1, 0.2, 599]))
-                # x_list.append(torch.tensor([0.1, 0.2, 0.3]))
+#                 # x_list.append(torch.tensor([0.1, 0.2, 599]))
+#                 # x_list.append(torch.tensor([0.1, 0.2, 0.3]))
                 
         
-            # x0 = torch.cat(x_list)
-            # x0 = pfs.fit_GN(x0.float(), all_lmks, plotit=False, use_ineq = False)[0]
-            # x0[:pfs.mm.Kid] = alpha
-            # x0 = pfs.fit_GN(x0.float(), all_lmks, plotit=False, use_ineq = True)[0]
-            x = pfd.fit_GN(x0.float(), all_pts, plotit=plotit2, use_ineq = True)[0]
-            # x = pfs.fit_GN(x0.float(), all_pts, plotit=plotit2, use_ineq = True)[0]
-            # x = pfd.fit_GN(x.float(), pts, plotit=True, use_ineq = False)[0]
+#             # x0 = torch.cat(x_list)
+#             # x0 = pfs.fit_GN(x0.float(), all_lmks, plotit=False, use_ineq = False)[0]
+#             # x0[:pfs.mm.Kid] = alpha
+#             # x0 = pfs.fit_GN(x0.float(), all_lmks, plotit=False, use_ineq = True)[0]
+#             x = pfd.fit_GN(x0.float(), all_pts, plotit=plotit2, use_ineq = True)[0]
+#             # x = pfs.fit_GN(x0.float(), all_pts, plotit=plotit2, use_ineq = True)[0]
+#             # x = pfd.fit_GN(x.float(), pts, plotit=True, use_ineq = False)[0]
             
             
-            alpha = x[:pfd.mm.Kid]
-            VI = np.diag((pfd.mm.sigma_alphas.cpu().numpy())**(-2))
-            d_maha = distance.mahalanobis(alpha, 0*alpha, VI)
-            mahas.append(d_maha)
-            print(d_maha)
-            # plt.plot(alpha)
-            # break
-            R = pfd.mm.compute_face_shape(alpha.unsqueeze(0).to('cuda')).cpu().squeeze().numpy()
-            # break
+#             alpha = x[:pfd.mm.Kid]
+#             VI = np.diag((pfd.mm.sigma_alphas.cpu().numpy())**(-2))
+#             d_maha = distance.mahalanobis(alpha, 0*alpha, VI)
+#             mahas.append(d_maha)
+#             print(d_maha)
+#             # plt.plot(alpha)
+#             # break
+#             R = pfd.mm.compute_face_shape(alpha.unsqueeze(0).to('cuda')).cpu().squeeze().numpy()
+#             # break
 
-            w = np.loadtxt('%s/car-vision/python/geometric_error/ridxs/ix_3di.txt' % os.path.expanduser('~')).astype(int)
-            # R = pfd.mm.compute_face_shape(torch.from_numpy(alpha).to('cuda'))
-            sdir = '/home/sariyanide/code/3DMMD/tmp'
-            """
-            Rpaths = glob(f'{sdir}/R{subj_id:03d}*txt')
-            Rs = []
-            for Rpath in Rpaths:
-                Rs.append(np.loadtxt(Rpath))
-            R = np.mean(np.array(Rs), axis=0)
-            # R = R[w]
-            """
+#             w = np.loadtxt('%s/car-vision/python/geometric_error/ridxs/ix_3di.txt' % os.path.expanduser('~')).astype(int)
+#             # R = pfd.mm.compute_face_shape(torch.from_numpy(alpha).to('cuda'))
+#             sdir = '/home/sariyanide/code/3DMMD/tmp'
+#             """
+#             Rpaths = glob(f'{sdir}/R{subj_id:03d}*txt')
+#             Rs = []
+#             for Rpath in Rpaths:
+#                 Rs.append(np.loadtxt(Rpath))
+#             R = np.mean(np.array(Rs), axis=0)
+#             # R = R[w]
+#             """
 
            
-            R_full = np.zeros((N,3))
+#             R_full = np.zeros((N,3))
     
-            R_full[ix_3di,:] = R # np.loadtxt(files[0])
-            R = R_full[common_idx,:]
-            np.savetxt(tpath, R)
+#             R_full[ix_3di,:] = R # np.loadtxt(files[0])
+#             R = R_full[common_idx,:]
+#             np.savetxt(tpath, R)
             
-            G = np.loadtxt(f'/offline_data/face/meshes/synth_020/ground_truth/subj{subj_id:03d}.txt')
-            plt.figure(figsize=(40, 20))
-            plt.subplot(121)
-            plt.plot(G[:,0], -G[:,1], '.')
-            plt.subplot(122)
-            plt.plot(G[:,2], -G[:,1], '.')
-            plt.show()
-            plt.figure(figsize=(40, 20))
-            plt.subplot(121)
-            plt.plot(R[:,0], R[:,1], '.')
-            plt.subplot(122)
-            plt.plot(R[:,2], R[:,1], '.')
-            plt.show()
-            """
+#             G = np.loadtxt(f'/offline_data/face/meshes/synth_020/ground_truth/subj{subj_id:03d}.txt')
+#             plt.figure(figsize=(40, 20))
+#             plt.subplot(121)
+#             plt.plot(G[:,0], -G[:,1], '.')
+#             plt.subplot(122)
+#             plt.plot(G[:,2], -G[:,1], '.')
+#             plt.show()
+#             plt.figure(figsize=(40, 20))
+#             plt.subplot(121)
+#             plt.plot(R[:,0], R[:,1], '.')
+#             plt.subplot(122)
+#             plt.plot(R[:,2], R[:,1], '.')
+#             plt.show()
+#             """
 
-            liBFM = [19106,19413,19656,19814,19981,20671,20837,20995,21256,21516,8161,8175,8184,8190,6758,7602,8201,8802,9641,1831,3759,5049,6086,4545,3515,10455,11482,12643,14583,12915,11881,5522,6154,7375,8215,9295,10523,10923,9917,9075,8235,7395,6548,5908,7264,8224,9184,10665,8948,8228,7508]
-            lrigid = np.array(liBFM)[[13, 19, 28, 31, 37]]
+#             liBFM = [19106,19413,19656,19814,19981,20671,20837,20995,21256,21516,8161,8175,8184,8190,6758,7602,8201,8802,9641,1831,3759,5049,6086,4545,3515,10455,11482,12643,14583,12915,11881,5522,6154,7375,8215,9295,10523,10923,9917,9075,8235,7395,6548,5908,7264,8224,9184,10665,8948,8228,7508]
+#             lrigid = np.array(liBFM)[[13, 19, 28, 31, 37]]
             
-            _, __, tform = procrustes(R[lrigid], G[lrigid])
+#             _, __, tform = procrustes(R[lrigid], G[lrigid])
             
-            G = tform['scale']*(G @ tform['rotation'])+tform['translation']
+#             G = tform['scale']*(G @ tform['rotation'])+tform['translation']
              
         
         
             
-            err = compute_error(R, G)
-            print('='*89)
-            print(f'{fov}: {np.mean(err)}')
-            """
+#             err = compute_error(R, G)
+#             print('='*89)
+#             print(f'{fov}: {np.mean(err)}')
+#             """
         
         
 
-#%%
+# #%%
         
-"""
-if __name__ == '__main__':
-    of = OrthographicFitter(mm)
-    # sdir = '/offline_data/face/yt_faces2/3DI/OD0.6_OE0.3_OB0.7_RS78_IN0_SF0_CF0.42NF7_NTC7_UL0_CB1GLOBAL79_IS0K7440.75P1BFMmm-19830/10/'
-    # files = glob(f'{sdir}/*pts')
-    sdir = '/home/sariyanide/code/3DMMD/tmp'
-    files = glob(f'{sdir}/*txt')
+# """
+# if __name__ == '__main__':
+#     of = OrthographicFitter(mm)
+#     # sdir = '/offline_data/face/yt_faces2/3DI/OD0.6_OE0.3_OB0.7_RS78_IN0_SF0_CF0.42NF7_NTC7_UL0_CB1GLOBAL79_IS0K7440.75P1BFMmm-19830/10/'
+#     # files = glob(f'{sdir}/*pts')
+#     sdir = '/home/sariyanide/code/3DMMD/tmp'
+#     files = glob(f'{sdir}/*txt')
     
     
-    avg_mahas = []
-    fovs = [1, 2, 5, 10, 15, 20, 30, 40, 50, 60]
-    fovs = [20]
-    for fov in fovs:
-        print(fov)
-        cam = Camera(fov, fov, 112, 112)
-        pfs = PerspectiveFitter(mm, cam, use_maha=True, dense=False)
-        pfd = PerspectiveFitter(mm, cam, use_maha=True, dense=True)
+#     avg_mahas = []
+#     fovs = [1, 2, 5, 10, 15, 20, 30, 40, 50, 60]
+#     fovs = [20]
+#     for fov in fovs:
+#         print(fov)
+#         cam = Camera(fov, fov, 112, 112)
+#         pfs = PerspectiveFitter(mm, cam, use_maha=True, dense=False)
+#         pfd = PerspectiveFitter(mm, cam, use_maha=True, dense=True)
     
-        mahas = []
-        for fpath in files:
-            # print(os.path.basename(fpath))
-            # plt.clf()
-            pts = np.loadtxt(fpath)
-            lmks = pts[pfs.mm.li.cpu().numpy(),:]
-            # lmks[:,1] = 224-lmks[:,1]
+#         mahas = []
+#         for fpath in files:
+#             # print(os.path.basename(fpath))
+#             # plt.clf()
+#             pts = np.loadtxt(fpath)
+#             lmks = pts[pfs.mm.li.cpu().numpy(),:]
+#             # lmks[:,1] = 224-lmks[:,1]
     
-            x0 = torch.cat([0*torch.rand(199), torch.tensor([0.1, 0.2, 599]), torch.tensor([0.1, 0.2, 0.3])])
-            x0 = pfs.fit_GN(x0.float(), lmks, plotit=False, use_ineq = False)[0]
-            x0[:pfs.mm.Kid] *= 0
-            x0 = pfs.fit_GN(x0.float(), lmks, plotit=False, use_ineq = True)[0]
-            x = pfd.fit_GN(x0.float(), pts, plotit=False, use_ineq = True)[0]
-            # x = pfd.fit_GN(x.float(), pts, plotit=True, use_ineq = False)[0]
+#             x0 = torch.cat([0*torch.rand(199), torch.tensor([0.1, 0.2, 599]), torch.tensor([0.1, 0.2, 0.3])])
+#             x0 = pfs.fit_GN(x0.float(), lmks, plotit=False, use_ineq = False)[0]
+#             x0[:pfs.mm.Kid] *= 0
+#             x0 = pfs.fit_GN(x0.float(), lmks, plotit=False, use_ineq = True)[0]
+#             x = pfd.fit_GN(x0.float(), pts, plotit=False, use_ineq = True)[0]
+#             # x = pfd.fit_GN(x.float(), pts, plotit=True, use_ineq = False)[0]
             
             
-            alpha = x[:pfd.mm.Kid]
-            VI = np.diag((pfd.mm.sigma_alphas.cpu().numpy())**(-2))
-            d_maha = distance.mahalanobis(alpha, 0*alpha, VI)
-            mahas.append(d_maha)
-            # print(d_maha)
-            # plt.plot(alpha)
-            # break
-        avg_mahas.append(np.mean(mahas))
-    #%%
+#             alpha = x[:pfd.mm.Kid]
+#             VI = np.diag((pfd.mm.sigma_alphas.cpu().numpy())**(-2))
+#             d_maha = distance.mahalanobis(alpha, 0*alpha, VI)
+#             mahas.append(d_maha)
+#             # print(d_maha)
+#             # plt.plot(alpha)
+#             # break
+#         avg_mahas.append(np.mean(mahas))
+#     #%%
     
-    w = np.loadtxt('%s/car-vision/python/geometric_error/ridxs/ix_3di.txt' % os.path.expanduser('~')).astype(int)
-    plt.plot(fovs, avg_mahas)
-    # R = pfd.mm.compute_face_shape(torch.from_numpy(alpha).to('cuda'))
-    R = pfd.mm.compute_face_shape(alpha.unsqueeze(0).to('cuda')).cpu().squeeze().numpy()
+#     w = np.loadtxt('%s/car-vision/python/geometric_error/ridxs/ix_3di.txt' % os.path.expanduser('~')).astype(int)
+#     plt.plot(fovs, avg_mahas)
+#     # R = pfd.mm.compute_face_shape(torch.from_numpy(alpha).to('cuda'))
+#     R = pfd.mm.compute_face_shape(alpha.unsqueeze(0).to('cuda')).cpu().squeeze().numpy()
     
-    #%%
-    G = np.loadtxt('/offline_data/face/meshes/synth_020/ground_truth/subj003.txt')
-    plt.figure(figsize=(40, 20))
-    plt.subplot(121)
-    plt.plot(G[:,0], -G[:,1], '.')
-    plt.subplot(122)
-    plt.plot(G[:,2], -G[:,1], '.')
+#     #%%
+#     G = np.loadtxt('/offline_data/face/meshes/synth_020/ground_truth/subj003.txt')
+#     plt.figure(figsize=(40, 20))
+#     plt.subplot(121)
+#     plt.plot(G[:,0], -G[:,1], '.')
+#     plt.subplot(122)
+#     plt.plot(G[:,2], -G[:,1], '.')
     
-    plt.figure(figsize=(40, 20))
-    plt.subplot(121)
-    plt.plot(R[:,0], R[:,1], '.')
-    plt.subplot(122)
-    plt.plot(R[:,2], R[:,1], '.')
+#     plt.figure(figsize=(40, 20))
+#     plt.subplot(121)
+#     plt.plot(R[:,0], R[:,1], '.')
+#     plt.subplot(122)
+#     plt.plot(R[:,2], R[:,1], '.')
     
-        """
+#         """
