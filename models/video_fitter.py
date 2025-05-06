@@ -174,12 +174,12 @@ class VideoFitter():
                 lmks51 = lmks51[17:,:]
             
             if lmks51[0,0] == 0:
-                alphas.append(alphas[-1] if len(alphas) > 0 else None)
-                betas.append(betas[-1] if len(betas) > 0 else None)
-                angles.append(angles[-1] if len(angles) > 0 else None)
-                taus.append(taus[-1] if len(taus) > 0 else None)
-                exps.append(exps[-1] if len(exps) > 0 else None)
-                invMs.append(invMs[-1] if len(invMs) > 0 else None)
+                alphas.append(alphas[-1] if len(alphas) > 0 else np.nan*np.ones((1, self.mm.Kid)))
+                betas.append(betas[-1] if len(betas) > 0 else np.nan*np.ones((1, self.mm.Ktex)))
+                angles.append(angles[-1] if len(angles) > 0 else np.nan*np.ones((1,3)))
+                taus.append(taus[-1] if len(taus) > 0 else np.nan*np.ones((1, 3)))
+                exps.append(exps[-1] if len(exps) > 0 else np.nan*np.ones((1, self.mm.Kexp)))
+                invMs.append(invMs[-1] if len(invMs) > 0 else np.nan*np.ones((2, 3)))
                 continue
             
             cim = frame.astype(np.float32)/255.0
